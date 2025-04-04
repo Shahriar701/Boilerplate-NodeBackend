@@ -12,10 +12,12 @@ import { createServer } from 'http';
 import { SocketService } from './services/socket.service';
 import { errorMiddleware } from './middlewares/error.middleware';
 import { createSocketAuthMiddleware } from './middlewares/socket.middleware';
+import { setupSwagger } from './middlewares/swagger.middleware';
 
 // Import controllers
 // Note: The controllers need to be imported here so they can register routes via decorators
 import './controllers/user.controller';
+import './controllers/auth.controller';
 
 async function bootstrap(): Promise<void> {
   try {
@@ -38,6 +40,11 @@ async function bootstrap(): Promise<void> {
       app.use(helmet());
       app.use(cors());
       app.use(morgan(config.nodeEnv === 'development' ? 'dev' : 'combined'));
+      
+      // Setup Swagger documentation
+      if (config.nodeEnv === 'development') {
+        setupSwagger(app);
+      }
     });
 
     // Build express app
@@ -64,6 +71,9 @@ async function bootstrap(): Promise<void> {
     httpServer.listen(port, () => {
       console.log(`Server is running on port ${port} in ${config.nodeEnv} mode`);
       console.log(`API is available at http://localhost:${port}${config.apiPrefix}`);
+      if (config.nodeEnv === 'development') {
+        console.log(`API Documentation available at http://localhost:${port}/api-docs`);
+      }
       console.log(`WebSocket server initialized`);
     });
   } catch (error) {
