@@ -1,7 +1,9 @@
-import { injectable } from 'inversify';
+import { injectable, inject } from 'inversify';
 import { IUser, UserModel } from '@models/mongo/user.model';
 import { MongoBaseRepository } from './base.repository';
 import { IBaseRepository } from '../base.repository.interface';
+import { IDatabaseConnection } from '@database/database.interface';
+import { TYPES } from '@config/types';
 
 export interface IUserRepository extends IBaseRepository<IUser> {
   findByEmail(email: string): Promise<IUser | null>;
@@ -9,7 +11,9 @@ export interface IUserRepository extends IBaseRepository<IUser> {
 
 @injectable()
 export class UserRepository extends MongoBaseRepository<IUser> implements IUserRepository {
-  constructor() {
+  constructor(
+    @inject(TYPES.IDatabaseConnection) dbConnection: IDatabaseConnection
+  ) {
     super(UserModel);
   }
 

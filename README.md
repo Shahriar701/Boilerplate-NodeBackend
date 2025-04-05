@@ -96,7 +96,7 @@ src/
 1. Clone the repository:
    ```
    git clone https://github.com/yourusername/backend-boilerplate.git
-   cd backend-boilerplate
+   cd Boilerplate-NodeBackend
    ```
 
 2. Install dependencies:
