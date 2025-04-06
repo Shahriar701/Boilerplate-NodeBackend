@@ -1,5 +1,23 @@
 import { Request, Response } from 'express';
-import { validateBody, Validators } from '../validation.middleware';
+import { validateBody, Validators } from '@middlewares/validation.middleware';
+import { ApiError } from '@middlewares/error.middleware';
+
+// Mock ApiError for tests
+jest.mock('@middlewares/error.middleware', () => {
+  const originalModule = jest.requireActual('@middlewares/error.middleware');
+  return {
+    ...originalModule,
+    ApiError: {
+      ...originalModule.ApiError,
+      badRequest: jest.fn().mockImplementation((message, errors) => ({
+        message,
+        errors,
+        statusCode: 400,
+        name: 'ApiError'
+      }))
+    }
+  };
+});
 
 describe('Validation Middleware', () => {
   let mockRequest: Partial<Request>;
@@ -18,10 +36,13 @@ describe('Validation Middleware', () => {
     };
 
     nextFunction = jest.fn();
+
+    // Reset mocks
+    jest.clearAllMocks();
   });
 
   describe('validateBody', () => {
-    it('should return 400 if request body is missing', () => {
+    it('should pass ApiError to next() if request body is missing', () => {
       // Arrange
       mockRequest.body = undefined;
       const middleware = validateBody<any>({});
@@ -30,9 +51,9 @@ describe('Validation Middleware', () => {
       middleware(mockRequest as Request, mockResponse as Response, nextFunction);
 
       // Assert
-      expect(mockResponse.status).toHaveBeenCalledWith(400);
-      expect(mockResponse.json).toHaveBeenCalledWith({ message: 'Request body is required' });
-      expect(nextFunction).not.toHaveBeenCalled();
+      expect(nextFunction).toHaveBeenCalled();
+      expect(ApiError.badRequest).toHaveBeenCalledWith('Request body is required');
+      expect(mockResponse.status).not.toHaveBeenCalled();
     });
 
     it('should call next() if all validations pass', () => {
@@ -54,15 +75,22 @@ describe('Validation Middleware', () => {
 
       // Assert
       expect(nextFunction).toHaveBeenCalled();
+      expect(ApiError.badRequest).not.toHaveBeenCalled();
       expect(mockResponse.status).not.toHaveBeenCalled();
     });
 
-    it('should return validation errors if some fields are invalid', () => {
+    it('should pass validation errors to next() if some fields are invalid', () => {
       // Arrange
       mockRequest.body = {
         email: 'invalid-email',
         name: 'A', // too short
         age: 15    // too young
+      };
+
+      const customErrorMessages = {
+        email: 'Please provide a valid email address',
+        name: 'Name must be between 2 and 100 characters',
+        age: 'Age must be between 18 and 100'
       };
 
       const middleware = validateBody<typeof mockRequest.body>(
@@ -71,26 +99,19 @@ describe('Validation Middleware', () => {
           name: Validators.string(2, 100),
           age: Validators.number(18, 100)
         },
-        {
-          email: 'Please provide a valid email address',
-          name: 'Name must be between 2 and 100 characters',
-          age: 'Age must be between 18 and 100'
-        }
+        customErrorMessages
       );
 
       // Act
       middleware(mockRequest as Request, mockResponse as Response, nextFunction);
 
       // Assert
-      expect(mockResponse.status).toHaveBeenCalledWith(400);
-      expect(mockResponse.json).toHaveBeenCalledWith({
-        errors: {
-          email: 'Please provide a valid email address',
-          name: 'Name must be between 2 and 100 characters',
-          age: 'Age must be between 18 and 100'
-        }
-      });
-      expect(nextFunction).not.toHaveBeenCalled();
+      expect(nextFunction).toHaveBeenCalled();
+      expect(ApiError.badRequest).toHaveBeenCalledWith(
+        'Validation error',
+        expect.objectContaining(customErrorMessages)
+      );
+      expect(mockResponse.status).not.toHaveBeenCalled();
     });
 
     it('should use default error messages if custom ones are not provided', () => {
@@ -107,12 +128,13 @@ describe('Validation Middleware', () => {
       middleware(mockRequest as Request, mockResponse as Response, nextFunction);
 
       // Assert
-      expect(mockResponse.status).toHaveBeenCalledWith(400);
-      expect(mockResponse.json).toHaveBeenCalledWith({
-        errors: {
+      expect(nextFunction).toHaveBeenCalled();
+      expect(ApiError.badRequest).toHaveBeenCalledWith(
+        'Validation error',
+        expect.objectContaining({
           email: 'Invalid email'
-        }
-      });
+        })
+      );
     });
 
     it('should skip validation for undefined fields', () => {
@@ -132,6 +154,7 @@ describe('Validation Middleware', () => {
 
       // Assert
       expect(nextFunction).toHaveBeenCalled();
+      expect(ApiError.badRequest).not.toHaveBeenCalled();
     });
   });
 
