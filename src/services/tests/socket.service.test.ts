@@ -1,6 +1,6 @@
 import { Server as HttpServer } from 'http';
 import { Server, Socket } from 'socket.io';
-import { SocketService, SocketEvents } from './socket.service';
+import { SocketService, SocketEvents } from '@services/socket.service';
 
 // Create a mock for the Socket.IO Server
 const mockOn = jest.fn();
@@ -26,7 +26,7 @@ describe('Socket Service', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    
+
     socketService = new SocketService();
     mockHttpServer = {};
     mockSocket = {
@@ -34,7 +34,7 @@ describe('Socket Service', () => {
       on: jest.fn(),
       emit: jest.fn()
     };
-    
+
     // Initialize Socket.IO
     socketService.initialize(mockHttpServer as HttpServer);
   });
@@ -53,17 +53,17 @@ describe('Socket Service', () => {
     it('should do nothing if already initialized', () => {
       jest.clearAllMocks();
       socketService.initialize(mockHttpServer as HttpServer);
-      
+
       expect(Server).not.toHaveBeenCalled();
     });
 
     it('should set up connection listeners', () => {
       // Get the connection handler
       const connectionHandler = mockOn.mock.calls[0][1];
-      
+
       // Trigger connection event
       connectionHandler(mockSocket);
-      
+
       // Check that disconnect handler is set up
       expect(mockSocket.on).toHaveBeenCalledWith('disconnect', expect.any(Function));
     });
@@ -73,15 +73,15 @@ describe('Socket Service', () => {
     it('should add a new event to the events array', () => {
       const handler = jest.fn();
       const event = { name: 'test-event', handler };
-      
+
       socketService.registerEvent(event);
-      
+
       // Get the connection handler
       const connectionHandler = mockOn.mock.calls[0][1];
-      
+
       // Trigger connection event
       connectionHandler(mockSocket);
-      
+
       // Check that event is registered for the socket
       expect(mockSocket.on).toHaveBeenCalledWith('test-event', expect.any(Function));
     });
@@ -90,16 +90,16 @@ describe('Socket Service', () => {
   describe('emit', () => {
     it('should emit event to all connected clients', () => {
       socketService.emit('test-event', { data: 'test-data' });
-      
+
       expect(mockEmit).toHaveBeenCalledWith('test-event', { data: 'test-data' });
     });
 
     it('should not emit if Socket.IO is not initialized', () => {
       // Create a new service without initializing
       const newService = new SocketService();
-      
+
       newService.emit('test-event', { data: 'test-data' });
-      
+
       expect(mockEmit).not.toHaveBeenCalled();
     });
   });
@@ -107,7 +107,7 @@ describe('Socket Service', () => {
   describe('emitToRoom', () => {
     it('should emit event to a specific room', () => {
       socketService.emitToRoom('test-room', 'test-event', { data: 'test-data' });
-      
+
       expect(mockTo).toHaveBeenCalledWith('test-room');
       expect(mockEmit).toHaveBeenCalledWith('test-event', { data: 'test-data' });
     });
@@ -115,9 +115,9 @@ describe('Socket Service', () => {
     it('should not emit if Socket.IO is not initialized', () => {
       // Create a new service without initializing
       const newService = new SocketService();
-      
+
       newService.emitToRoom('test-room', 'test-event', { data: 'test-data' });
-      
+
       expect(mockTo).not.toHaveBeenCalled();
     });
   });
@@ -125,16 +125,16 @@ describe('Socket Service', () => {
   describe('getIO', () => {
     it('should return the Socket.IO server instance', () => {
       const io = socketService.getIO();
-      
+
       expect(io).toBe(mockServer);
     });
 
     it('should return null if Socket.IO is not initialized', () => {
       // Create a new service without initializing
       const newService = new SocketService();
-      
+
       const io = newService.getIO();
-      
+
       expect(io).toBeNull();
     });
   });

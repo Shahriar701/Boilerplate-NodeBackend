@@ -1,15 +1,24 @@
 import { Container } from 'inversify';
 import { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
-import { createAuthMiddleware, hasRoles, generateToken } from './auth.middleware';
+import { createAuthMiddleware, hasRoles, generateToken } from '../auth.middleware';
 import { TYPES } from '@config/types';
+import { ResponseUtil } from '@/utils/response.util';
+
+// Mock ResponseUtil
+jest.mock('@/utils/response.util', () => ({
+  ResponseUtil: {
+    unauthorized: jest.fn().mockReturnValue({}),
+    forbidden: jest.fn().mockReturnValue({})
+  }
+}));
 
 // Mock jsonwebtoken
 jest.mock('jsonwebtoken', () => ({
   verify: jest.fn(),
   sign: jest.fn(),
-  TokenExpiredError: class TokenExpiredError extends Error {},
-  JsonWebTokenError: class JsonWebTokenError extends Error {}
+  TokenExpiredError: class TokenExpiredError extends Error { },
+  JsonWebTokenError: class JsonWebTokenError extends Error { }
 }));
 
 describe('Authentication Middleware', () => {
@@ -21,25 +30,25 @@ describe('Authentication Middleware', () => {
   beforeEach(() => {
     // Reset mocks
     jest.clearAllMocks();
-    
+
     // Create a mock container
     container = new Container();
     container.bind(TYPES.IEnvironmentConfig).toConstantValue({
       jwtSecret: 'test-secret',
       jwtExpiresIn: '1h'
     });
-    
+
     // Mock request, response, next
     mockRequest = {
       headers: {},
       user: undefined
     };
-    
+
     mockResponse = {
       status: jest.fn().mockReturnThis(),
       json: jest.fn().mockReturnThis()
     };
-    
+
     nextFunction = jest.fn();
   });
 
@@ -47,13 +56,15 @@ describe('Authentication Middleware', () => {
     it('should return 401 if no authorization header is provided', () => {
       // Arrange
       const middleware = createAuthMiddleware(container);
-      
+
       // Act
       middleware(mockRequest as Request, mockResponse as Response, nextFunction);
-      
+
       // Assert
-      expect(mockResponse.status).toHaveBeenCalledWith(401);
-      expect(mockResponse.json).toHaveBeenCalledWith({ message: 'No authorization header provided' });
+      expect(ResponseUtil.unauthorized).toHaveBeenCalledWith(
+        mockResponse,
+        expect.objectContaining({ message: 'No authorization header provided' })
+      );
       expect(nextFunction).not.toHaveBeenCalled();
     });
 
@@ -61,15 +72,17 @@ describe('Authentication Middleware', () => {
       // Arrange
       mockRequest.headers = { authorization: 'Invalid-Format' };
       const middleware = createAuthMiddleware(container);
-      
+
       // Act
       middleware(mockRequest as Request, mockResponse as Response, nextFunction);
-      
+
       // Assert
-      expect(mockResponse.status).toHaveBeenCalledWith(401);
-      expect(mockResponse.json).toHaveBeenCalledWith({ 
-        message: 'Authorization header format should be "Bearer {token}"' 
-      });
+      expect(ResponseUtil.unauthorized).toHaveBeenCalledWith(
+        mockResponse,
+        expect.objectContaining({
+          message: 'Authorization header format should be "Bearer {token}"'
+        })
+      );
       expect(nextFunction).not.toHaveBeenCalled();
     });
 
@@ -78,12 +91,12 @@ describe('Authentication Middleware', () => {
       mockRequest.headers = { authorization: 'Bearer valid-token' };
       const decodedToken = { id: '123', email: 'user@example.com', roles: ['user'] };
       (jwt.verify as jest.Mock).mockReturnValue(decodedToken);
-      
+
       const middleware = createAuthMiddleware(container);
-      
+
       // Act
       middleware(mockRequest as Request, mockResponse as Response, nextFunction);
-      
+
       // Assert
       expect(jwt.verify).toHaveBeenCalledWith('valid-token', 'test-secret');
       expect(mockRequest.user).toEqual(expect.objectContaining({
@@ -99,15 +112,17 @@ describe('Authentication Middleware', () => {
       mockRequest.headers = { authorization: 'Bearer expired-token' };
       const error = new (jwt.TokenExpiredError as any)('Token expired');
       (jwt.verify as jest.Mock).mockImplementation(() => { throw error; });
-      
+
       const middleware = createAuthMiddleware(container);
-      
+
       // Act
       middleware(mockRequest as Request, mockResponse as Response, nextFunction);
-      
+
       // Assert
-      expect(mockResponse.status).toHaveBeenCalledWith(401);
-      expect(mockResponse.json).toHaveBeenCalledWith({ message: 'Token expired' });
+      expect(ResponseUtil.unauthorized).toHaveBeenCalledWith(
+        mockResponse,
+        expect.objectContaining({ message: 'Token expired' })
+      );
       expect(nextFunction).not.toHaveBeenCalled();
     });
 
@@ -116,15 +131,17 @@ describe('Authentication Middleware', () => {
       mockRequest.headers = { authorization: 'Bearer invalid-token' };
       const error = new (jwt.JsonWebTokenError as any)('Invalid token');
       (jwt.verify as jest.Mock).mockImplementation(() => { throw error; });
-      
+
       const middleware = createAuthMiddleware(container);
-      
+
       // Act
       middleware(mockRequest as Request, mockResponse as Response, nextFunction);
-      
+
       // Assert
-      expect(mockResponse.status).toHaveBeenCalledWith(401);
-      expect(mockResponse.json).toHaveBeenCalledWith({ message: 'Invalid token format' });
+      expect(ResponseUtil.unauthorized).toHaveBeenCalledWith(
+        mockResponse,
+        expect.objectContaining({ message: 'Invalid token format' })
+      );
       expect(nextFunction).not.toHaveBeenCalled();
     });
   });
@@ -133,13 +150,15 @@ describe('Authentication Middleware', () => {
     it('should return 401 if user is not authenticated', () => {
       // Arrange
       const middleware = hasRoles(['admin']);
-      
+
       // Act
       middleware(mockRequest as Request, mockResponse as Response, nextFunction);
-      
+
       // Assert
-      expect(mockResponse.status).toHaveBeenCalledWith(401);
-      expect(mockResponse.json).toHaveBeenCalledWith({ message: 'User not authenticated' });
+      expect(ResponseUtil.unauthorized).toHaveBeenCalledWith(
+        mockResponse,
+        expect.objectContaining({ message: 'User not authenticated' })
+      );
       expect(nextFunction).not.toHaveBeenCalled();
     });
 
@@ -147,13 +166,15 @@ describe('Authentication Middleware', () => {
       // Arrange
       mockRequest.user = { id: '123', email: 'user@example.com', roles: ['user'] };
       const middleware = hasRoles(['admin']);
-      
+
       // Act
       middleware(mockRequest as Request, mockResponse as Response, nextFunction);
-      
+
       // Assert
-      expect(mockResponse.status).toHaveBeenCalledWith(403);
-      expect(mockResponse.json).toHaveBeenCalledWith({ message: 'Insufficient permissions' });
+      expect(ResponseUtil.forbidden).toHaveBeenCalledWith(
+        mockResponse,
+        expect.objectContaining({ message: 'Insufficient permissions' })
+      );
       expect(nextFunction).not.toHaveBeenCalled();
     });
 
@@ -161,10 +182,10 @@ describe('Authentication Middleware', () => {
       // Arrange
       mockRequest.user = { id: '123', email: 'user@example.com', roles: ['admin'] };
       const middleware = hasRoles(['admin']);
-      
+
       // Act
       middleware(mockRequest as Request, mockResponse as Response, nextFunction);
-      
+
       // Assert
       expect(nextFunction).toHaveBeenCalled();
     });
@@ -173,10 +194,10 @@ describe('Authentication Middleware', () => {
       // Arrange
       mockRequest.user = { id: '123', email: 'user@example.com', roles: ['user', 'editor'] };
       const middleware = hasRoles(['admin', 'editor']);
-      
+
       // Act
       middleware(mockRequest as Request, mockResponse as Response, nextFunction);
-      
+
       // Assert
       expect(nextFunction).toHaveBeenCalled();
     });
@@ -189,10 +210,10 @@ describe('Authentication Middleware', () => {
       const secret = 'test-secret';
       const expiresIn = '1h';
       (jwt.sign as jest.Mock).mockReturnValue('generated-token');
-      
+
       // Act
       const result = generateToken(payload, secret, expiresIn);
-      
+
       // Assert
       expect(jwt.sign).toHaveBeenCalledWith(payload, secret, { expiresIn });
       expect(result).toBe('generated-token');

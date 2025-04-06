@@ -1,5 +1,23 @@
 import { Request, Response } from 'express';
-import { validateBody, Validators } from './validation.middleware';
+import { validateBody, Validators } from '@middlewares/validation.middleware';
+import { ApiError } from '@middlewares/error.middleware';
+
+// Mock ApiError for tests
+jest.mock('@middlewares/error.middleware', () => {
+  const originalModule = jest.requireActual('@middlewares/error.middleware');
+  return {
+    ...originalModule,
+    ApiError: {
+      ...originalModule.ApiError,
+      badRequest: jest.fn().mockImplementation((message, errors) => ({
+        message,
+        errors,
+        statusCode: 400,
+        name: 'ApiError'
+      }))
+    }
+  };
+});
 
 describe('Validation Middleware', () => {
   let mockRequest: Partial<Request>;
@@ -11,28 +29,31 @@ describe('Validation Middleware', () => {
     mockRequest = {
       body: {}
     };
-    
+
     mockResponse = {
       status: jest.fn().mockReturnThis(),
       json: jest.fn().mockReturnThis()
     };
-    
+
     nextFunction = jest.fn();
+
+    // Reset mocks
+    jest.clearAllMocks();
   });
 
   describe('validateBody', () => {
-    it('should return 400 if request body is missing', () => {
+    it('should pass ApiError to next() if request body is missing', () => {
       // Arrange
       mockRequest.body = undefined;
       const middleware = validateBody<any>({});
-      
+
       // Act
       middleware(mockRequest as Request, mockResponse as Response, nextFunction);
-      
+
       // Assert
-      expect(mockResponse.status).toHaveBeenCalledWith(400);
-      expect(mockResponse.json).toHaveBeenCalledWith({ message: 'Request body is required' });
-      expect(nextFunction).not.toHaveBeenCalled();
+      expect(nextFunction).toHaveBeenCalled();
+      expect(ApiError.badRequest).toHaveBeenCalledWith('Request body is required');
+      expect(mockResponse.status).not.toHaveBeenCalled();
     });
 
     it('should call next() if all validations pass', () => {
@@ -42,55 +63,55 @@ describe('Validation Middleware', () => {
         name: 'John Doe',
         age: 30
       };
-      
+
       const middleware = validateBody<typeof mockRequest.body>({
         email: Validators.email,
         name: Validators.string(2, 100),
         age: Validators.number(18, 100)
       });
-      
+
       // Act
       middleware(mockRequest as Request, mockResponse as Response, nextFunction);
-      
+
       // Assert
       expect(nextFunction).toHaveBeenCalled();
+      expect(ApiError.badRequest).not.toHaveBeenCalled();
       expect(mockResponse.status).not.toHaveBeenCalled();
     });
 
-    it('should return validation errors if some fields are invalid', () => {
+    it('should pass validation errors to next() if some fields are invalid', () => {
       // Arrange
       mockRequest.body = {
         email: 'invalid-email',
         name: 'A', // too short
         age: 15    // too young
       };
-      
+
+      const customErrorMessages = {
+        email: 'Please provide a valid email address',
+        name: 'Name must be between 2 and 100 characters',
+        age: 'Age must be between 18 and 100'
+      };
+
       const middleware = validateBody<typeof mockRequest.body>(
         {
           email: Validators.email,
           name: Validators.string(2, 100),
           age: Validators.number(18, 100)
         },
-        {
-          email: 'Please provide a valid email address',
-          name: 'Name must be between 2 and 100 characters',
-          age: 'Age must be between 18 and 100'
-        }
+        customErrorMessages
       );
-      
+
       // Act
       middleware(mockRequest as Request, mockResponse as Response, nextFunction);
-      
+
       // Assert
-      expect(mockResponse.status).toHaveBeenCalledWith(400);
-      expect(mockResponse.json).toHaveBeenCalledWith({
-        errors: {
-          email: 'Please provide a valid email address',
-          name: 'Name must be between 2 and 100 characters',
-          age: 'Age must be between 18 and 100'
-        }
-      });
-      expect(nextFunction).not.toHaveBeenCalled();
+      expect(nextFunction).toHaveBeenCalled();
+      expect(ApiError.badRequest).toHaveBeenCalledWith(
+        'Validation error',
+        expect.objectContaining(customErrorMessages)
+      );
+      expect(mockResponse.status).not.toHaveBeenCalled();
     });
 
     it('should use default error messages if custom ones are not provided', () => {
@@ -98,21 +119,22 @@ describe('Validation Middleware', () => {
       mockRequest.body = {
         email: 'invalid-email'
       };
-      
+
       const middleware = validateBody<{ email: string }>({
         email: Validators.email
       });
-      
+
       // Act
       middleware(mockRequest as Request, mockResponse as Response, nextFunction);
-      
+
       // Assert
-      expect(mockResponse.status).toHaveBeenCalledWith(400);
-      expect(mockResponse.json).toHaveBeenCalledWith({
-        errors: {
+      expect(nextFunction).toHaveBeenCalled();
+      expect(ApiError.badRequest).toHaveBeenCalledWith(
+        'Validation error',
+        expect.objectContaining({
           email: 'Invalid email'
-        }
-      });
+        })
+      );
     });
 
     it('should skip validation for undefined fields', () => {
@@ -121,17 +143,18 @@ describe('Validation Middleware', () => {
         email: 'user@example.com'
         // name is optional and not provided
       };
-      
+
       const middleware = validateBody<{ email: string; name?: string }>({
         email: Validators.email,
         name: Validators.string(2, 100)
       });
-      
+
       // Act
       middleware(mockRequest as Request, mockResponse as Response, nextFunction);
-      
+
       // Assert
       expect(nextFunction).toHaveBeenCalled();
+      expect(ApiError.badRequest).not.toHaveBeenCalled();
     });
   });
 
@@ -154,7 +177,7 @@ describe('Validation Middleware', () => {
     describe('string', () => {
       it('should validate string length', () => {
         const validator = Validators.string(2, 5);
-        
+
         expect(validator('a')).toBe(false);     // too short
         expect(validator('ab')).toBe(true);     // minimum length
         expect(validator('abcde')).toBe(true);  // maximum length
@@ -163,7 +186,7 @@ describe('Validation Middleware', () => {
 
       it('should return false for non-string values', () => {
         const validator = Validators.string();
-        
+
         expect(validator(123)).toBe(false);
         expect(validator(null)).toBe(false);
         expect(validator(undefined)).toBe(false);
@@ -174,7 +197,7 @@ describe('Validation Middleware', () => {
     describe('number', () => {
       it('should validate number range', () => {
         const validator = Validators.number(5, 10);
-        
+
         expect(validator(4)).toBe(false);  // too small
         expect(validator(5)).toBe(true);   // minimum value
         expect(validator(7)).toBe(true);   // in range
@@ -184,7 +207,7 @@ describe('Validation Middleware', () => {
 
       it('should return false for non-number values', () => {
         const validator = Validators.number();
-        
+
         expect(validator('123')).toBe(false);
         expect(validator(null)).toBe(false);
         expect(validator(undefined)).toBe(false);

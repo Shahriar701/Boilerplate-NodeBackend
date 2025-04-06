@@ -3,6 +3,32 @@ import { Server, Socket } from 'socket.io';
 import { injectable } from 'inversify';
 
 /**
+ * Event constants for standardized real-time communication
+ */
+export const SocketEvents = {
+  // Message events
+  MESSAGE_SENT: 'message:sent',
+  MESSAGE_RECEIVED: 'message:received',
+
+  // Notification events
+  NOTIFICATION_CREATED: 'notification:created',
+  NOTIFICATION_READ: 'notification:read',
+
+  // Resource events for real-time CRUD operations
+  RESOURCE_CREATED: 'resource:created',
+  RESOURCE_UPDATED: 'resource:updated',
+  RESOURCE_DELETED: 'resource:deleted'
+};
+
+/**
+ * Interface for custom socket event handlers
+ */
+export interface SocketEventHandler {
+  name: string;
+  handler: (socket: Socket, ...args: any[]) => void;
+}
+
+/**
  * Interface for Socket.IO events and handlers
  */
 export interface SocketEvent {
@@ -16,77 +42,51 @@ export interface SocketEvent {
 @injectable()
 export class SocketService {
   private io: Server | null = null;
-  private events: SocketEvent[] = [];
+  private events: SocketEventHandler[] = [];
 
   /**
-   * Initialize Socket.IO server with HTTP server
+   * Initialize the Socket.IO server
    * @param httpServer HTTP server instance
-   * @param options Socket.IO options
    */
-  initialize(httpServer: HttpServer, options: any = {}): void {
+  public initialize(httpServer: HttpServer): void {
+    // Prevent multiple initializations
     if (this.io) {
-      console.warn('Socket.IO server already initialized');
       return;
     }
 
+    // Create Socket.IO server with CORS configuration
     this.io = new Server(httpServer, {
       cors: {
-        origin: '*', // In production, restrict this to specific origins
+        origin: '*', // In production, this should be configured more restrictively
         methods: ['GET', 'POST'],
-        credentials: true,
-      },
-      ...options,
+        credentials: true
+      }
     });
-
-    console.log('Socket.IO server initialized');
 
     // Set up connection handler
     this.io.on('connection', (socket: Socket) => {
-      console.log(`Client connected: ${socket.id}`);
+      console.log(`Socket connected: ${socket.id}`);
 
-      // Register all events for this socket
-      this.registerEvents(socket);
-
-      // Handle disconnection
+      // Register disconnect handler
       socket.on('disconnect', () => {
-        console.log(`Client disconnected: ${socket.id}`);
+        console.log(`Socket disconnected: ${socket.id}`);
+      });
+
+      // Register custom event handlers
+      this.events.forEach(event => {
+        socket.on(event.name, (...args: any[]) => {
+          event.handler(socket, ...args);
+        });
       });
     });
-
-    // Register predefined events
-    this.registerPredefinedEvents();
   }
 
   /**
-   * Register a new socket event
-   * @param event SocketEvent object with name and handler
+   * Register a custom event handler
+   * @param event Event handler object
    */
-  registerEvent(event: SocketEvent): void {
+  public registerEvent(event: SocketEventHandler): void {
     this.events.push(event);
-    console.log(`Socket event registered: ${event.name}`);
-  }
-
-  /**
-   * Register multiple socket events
-   * @param events Array of SocketEvent objects
-   */
-  registerEvents(socket: Socket): void {
-    this.events.forEach((event) => {
-      socket.on(event.name, (...args: any[]) => event.handler(socket, ...args));
-    });
-  }
-
-  /**
-   * Register predefined events that should be available by default
-   */
-  private registerPredefinedEvents(): void {
-    // Example: ping-pong event
-    this.registerEvent({
-      name: 'ping',
-      handler: (socket: Socket) => {
-        socket.emit('pong', { timestamp: Date.now() });
-      },
-    });
   }
 
   /**
@@ -94,51 +94,29 @@ export class SocketService {
    * @param event Event name
    * @param data Event data
    */
-  emit(event: string, data: any): void {
-    if (!this.io) {
-      console.warn('Socket.IO server not initialized');
-      return;
+  public emit(event: string, data: any): void {
+    if (this.io) {
+      this.io.emit(event, data);
     }
-
-    this.io.emit(event, data);
   }
 
   /**
-   * Emit an event to a specific room
+   * Emit an event to clients in a specific room
    * @param room Room name
    * @param event Event name
    * @param data Event data
    */
-  emitToRoom(room: string, event: string, data: any): void {
-    if (!this.io) {
-      console.warn('Socket.IO server not initialized');
-      return;
+  public emitToRoom(room: string, event: string, data: any): void {
+    if (this.io) {
+      this.io.to(room).emit(event, data);
     }
-
-    this.io.to(room).emit(event, data);
   }
 
   /**
    * Get the Socket.IO server instance
-   * @returns Socket.IO server instance
+   * @returns Socket.IO server instance or null if not initialized
    */
-  getIO(): Server | null {
+  public getIO(): Server | null {
     return this.io;
   }
-}
-
-// Create namespace for event types
-export namespace SocketEvents {
-  // Example event types for messaging
-  export const MESSAGE_SENT = 'message:sent';
-  export const MESSAGE_RECEIVED = 'message:received';
-  
-  // Example event types for notifications
-  export const NOTIFICATION_CREATED = 'notification:created';
-  export const NOTIFICATION_READ = 'notification:read';
-
-  // Example event types for real-time updates
-  export const RESOURCE_CREATED = 'resource:created';
-  export const RESOURCE_UPDATED = 'resource:updated';
-  export const RESOURCE_DELETED = 'resource:deleted';
 } 

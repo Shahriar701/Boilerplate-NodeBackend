@@ -22,8 +22,8 @@ interface DecodedToken {
 }
 
 /**
- * Authentication middleware factory for Socket.IO
- * @param container Inversify container for accessing configurations
+ * Creates a middleware for Socket.IO to authenticate users using JWT
+ * @param container Inversify container for dependency injection
  * @returns Socket.IO middleware function
  */
 export const createSocketAuthMiddleware = (container: Container) => {
@@ -31,75 +31,80 @@ export const createSocketAuthMiddleware = (container: Container) => {
   const config = container.get<any>(TYPES.IEnvironmentConfig);
   const secret = config.jwtSecret;
 
-  /**
-   * Socket.IO middleware for authentication
-   * @param socket Socket instance
-   * @param next Next function
-   */
-  return (socket: Socket, next: (err?: Error) => void): void => {
+  return (socket: Socket, next: (err?: Error) => void) => {
     try {
-      // Get auth token from handshake query parameters or headers
-      const auth = socket.handshake.auth as SocketAuthData;
-      const token = 
-        auth.token || 
-        socket.handshake.headers.authorization?.split(' ')[1];
+      // Try to get token from socket handshake auth
+      let token = socket.handshake.auth?.token;
 
+      // If not in auth, try to get from authorization header
+      if (!token && socket.handshake.headers.authorization) {
+        const authHeader = socket.handshake.headers.authorization;
+        const parts = authHeader.split(' ');
+        if (parts.length === 2 && parts[0] === 'Bearer') {
+          token = parts[1];
+        }
+      }
+
+      // If no token found, return authentication error
       if (!token) {
         return next(new Error('Authentication required'));
       }
 
-      // Verify token
-      // @ts-ignore - Ignoring type errors with JWT library
-      const decoded = jwt.verify(token, secret);
-      
-      if (typeof decoded !== 'object') {
-        return next(new Error('Invalid token format'));
+      try {
+        // Verify JWT token
+        const decoded = jwt.verify(token, secret);
+
+        // Add user data to socket
+        if (decoded && typeof decoded === 'object') {
+          socket.data.user = {
+            id: decoded.sub || decoded.id || '',
+            email: decoded.email || '',
+            roles: Array.isArray(decoded.roles) ? decoded.roles : [],
+            ...decoded
+          };
+        }
+
+        next();
+      } catch (error) {
+        // Handle different JWT error types
+        let message = 'Invalid token';
+
+        if (error instanceof jwt.TokenExpiredError) {
+          message = 'Token expired';
+        } else if (error instanceof jwt.JsonWebTokenError) {
+          message = 'Invalid token format';
+        }
+
+        next(new Error(message));
       }
-
-      // Attach user data to socket
-      const tokenData = decoded as DecodedToken;
-      socket.data.user = {
-        id: tokenData.sub || tokenData.id || '',
-        email: tokenData.email || '',
-        roles: Array.isArray(tokenData.roles) ? tokenData.roles : [],
-        ...tokenData
-      };
-
-      return next();
     } catch (error) {
-      let message = 'Invalid token';
-      
-      if (error instanceof jwt.TokenExpiredError) {
-        message = 'Token expired';
-      } else if (error instanceof jwt.JsonWebTokenError) {
-        message = 'Invalid token format';
-      }
-      
-      return next(new Error(message));
+      // Handle any unexpected errors
+      next(new Error('Authentication failed'));
     }
   };
 };
 
 /**
- * Role-based access control middleware for Socket.IO
- * @param requiredRoles Array of required roles
+ * Creates a middleware for Socket.IO to check user roles
+ * @param roles Array of required roles
  * @returns Socket.IO middleware function
  */
-export const createSocketRolesMiddleware = (requiredRoles: string[]) => {
-  return (socket: Socket, next: (err?: Error) => void): void => {
-    const user = socket.data.user;
-    
-    if (!user) {
+export const createSocketRolesMiddleware = (roles: string[]) => {
+  return (socket: Socket, next: (err?: Error) => void) => {
+    // Check if user is authenticated
+    if (!socket.data.user) {
       return next(new Error('User not authenticated'));
     }
-    
-    const userRoles = user.roles || [];
-    const hasRequiredRoles = requiredRoles.some(role => userRoles.includes(role));
-    
+
+    // Check if user has any of the required roles
+    const userRoles = socket.data.user.roles || [];
+    const hasRequiredRoles = roles.some(role => userRoles.includes(role));
+
     if (!hasRequiredRoles) {
       return next(new Error('Insufficient permissions'));
     }
-    
-    return next();
+
+    // If user has required roles, proceed
+    next();
   };
 }; 

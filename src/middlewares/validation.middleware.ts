@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { ApiError } from '@middlewares/error.middleware';
 
 /**
  * Type for validation rules - each property is a validation function that returns true if valid
@@ -26,7 +27,7 @@ export const validateBody = <T extends object>(
 ) => {
   return (req: Request, res: Response, next: NextFunction): void => {
     if (!req.body) {
-      res.status(400).json({ message: 'Request body is required' });
+      next(ApiError.badRequest('Request body is required'));
       return;
     }
 
@@ -36,12 +37,12 @@ export const validateBody = <T extends object>(
     // Validate each field according to its rule
     for (const [field, validateFn] of Object.entries(rules)) {
       const value = req.body[field];
-      
+
       // Skip validation if field is not required and value is not provided
       if (value === undefined) {
         continue;
       }
-      
+
       const validator = validateFn as (value: any) => boolean;
       if (validator && !validator(value)) {
         hasErrors = true;
@@ -50,7 +51,7 @@ export const validateBody = <T extends object>(
     }
 
     if (hasErrors) {
-      res.status(400).json({ errors });
+      next(ApiError.badRequest('Validation error', errors as Record<string, string>));
     } else {
       next();
     }
@@ -62,69 +63,94 @@ export const validateBody = <T extends object>(
  */
 export const Validators = {
   /**
-   * Validates that a value is not empty (undefined, null, empty string)
+   * Validates that a value is not undefined, null, or empty string
    */
   required: (value: any): boolean => {
     return value !== undefined && value !== null && value !== '';
   },
-  
+
   /**
-   * Validates that a value is a string with minimum and maximum length
+   * Validates that a value is a string with optional length constraints
    */
-  string: (minLength = 1, maxLength = Infinity) => {
+  string: (minLength?: number, maxLength?: number) => {
     return (value: any): boolean => {
-      return typeof value === 'string' && 
-        value.length >= minLength && 
-        value.length <= maxLength;
+      if (typeof value !== 'string') {
+        return false;
+      }
+
+      if (minLength !== undefined && value.length < minLength) {
+        return false;
+      }
+
+      if (maxLength !== undefined && value.length > maxLength) {
+        return false;
+      }
+
+      return true;
     };
   },
-  
+
   /**
-   * Validates that a value is a number within a range
+   * Validates that a value is a number with optional range constraints
    */
-  number: (min = -Infinity, max = Infinity) => {
+  number: (min?: number, max?: number) => {
     return (value: any): boolean => {
-      return typeof value === 'number' && 
-        !isNaN(value) && 
-        value >= min && 
-        value <= max;
+      if (typeof value !== 'number' || isNaN(value)) {
+        return false;
+      }
+
+      if (min !== undefined && value < min) {
+        return false;
+      }
+
+      if (max !== undefined && value > max) {
+        return false;
+      }
+
+      return true;
     };
   },
-  
-  /**
-   * Validates that a value matches a regular expression
-   */
-  regex: (pattern: RegExp) => {
-    return (value: any): boolean => {
-      return typeof value === 'string' && pattern.test(value);
-    };
-  },
-  
+
   /**
    * Validates that a value is a valid email address
    */
   email: (value: any): boolean => {
-    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-    return typeof value === 'string' && emailRegex.test(value);
+    if (typeof value !== 'string') {
+      return false;
+    }
+
+    // Basic email validation regex
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(value);
   },
 
   /**
    * Validates that a value is a valid UUID
    */
   uuid: (value: any): boolean => {
+    if (typeof value !== 'string') {
+      return false;
+    }
+
+    // UUID validation regex
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-    return typeof value === 'string' && uuidRegex.test(value);
+    return uuidRegex.test(value);
   },
-  
+
   /**
    * Validates that a value is a valid date
    */
   date: (value: any): boolean => {
-    if (value instanceof Date) return !isNaN(value.getTime());
+    if (value instanceof Date) {
+      return !isNaN(value.getTime());
+    }
+
+    // Try to convert to Date if it's a string or number
     if (typeof value === 'string' || typeof value === 'number') {
       const date = new Date(value);
       return !isNaN(date.getTime());
     }
+
     return false;
   }
 };

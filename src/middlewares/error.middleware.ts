@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { ResponseUtil } from '@/utils/response.util';
 
 /**
  * Custom error class for API errors with status code
@@ -41,6 +42,7 @@ export class ApiError extends Error {
 
 /**
  * Global error handler middleware
+ * Uses ResponseUtil to ensure a consistent response format across the application
  */
 export const errorMiddleware = (
   err: Error,
@@ -48,38 +50,41 @@ export const errorMiddleware = (
   res: Response,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _next: NextFunction
-): void => {
+): Response => {
   console.error(`[ERROR] ${err.message}`, err);
 
-  // Default error response
-  let statusCode = 500;
-  let message = 'Internal Server Error';
-  let errors: Record<string, string> | undefined;
+  // Preserve the original error's stack trace for development mode
+  const stack = err.stack;
 
   // Handle specific error types
   if (err instanceof ApiError) {
-    statusCode = err.statusCode;
-    message = err.message;
-    errors = err.errors;
+    // Use appropriate ResponseUtil method based on error status code
+    switch (err.statusCode) {
+      case 400:
+        return ResponseUtil.badRequest(res, err, err.errors);
+      case 401:
+        return ResponseUtil.unauthorized(res, err);
+      case 403:
+        return ResponseUtil.forbidden(res, err);
+      case 404:
+        return ResponseUtil.notFound(res, err);
+      default:
+        return ResponseUtil.serverError(res, err);
+    }
   } else if (err.name === 'ValidationError') {
-    // Handle validation errors (e.g., from a validation library)
-    statusCode = 400;
-    message = 'Validation Error';
+    // Handle validation errors
     // This assumes the validation error has a structure with errors property
     // Adjust according to your validation library
-    errors = (err as any).errors;
+    return ResponseUtil.badRequest(res, err, (err as any).errors);
   } else if (err.name === 'UnauthorizedError') {
     // Handle auth errors
-    statusCode = 401;
-    message = err.message || 'Unauthorized';
+    return ResponseUtil.unauthorized(res, err);
   }
 
-  // Send error response
-  res.status(statusCode).json({
-    success: false,
-    message,
-    ...(errors && { errors }),
-    // Only include stack trace in development environment
-    ...(process.env.NODE_ENV !== 'production' && { stack: err.stack })
-  });
+  // For generic errors, we want to use a standardized message but preserve the stack trace
+  const genericError = new Error('Internal Server Error');
+  genericError.stack = stack; // Preserve the original stack trace
+
+  // Use a standardized message for generic errors to maintain consistency
+  return ResponseUtil.serverError(res, genericError);
 }; 

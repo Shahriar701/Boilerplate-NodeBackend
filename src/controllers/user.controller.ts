@@ -7,6 +7,7 @@ import { IUserService } from '@/interfaces/user.service.interfaces';
 import { ResponseUtil } from '@/utils/response.util';
 import { createAuthMiddleware, hasRoles } from '@/middlewares/auth.middleware';
 import { Container } from 'inversify';
+import { ApiError } from '@/middlewares/error.middleware';
 
 // Get the container from the server context
 const getContainer = (req: Request): Container => {
@@ -39,6 +40,14 @@ const selfOrAdmin = (req: Request, res: Response, next: NextFunction): void => {
   }
 };
 
+/**
+ * User Controller
+ * 
+ * Demonstrates best practices for handling HTTP requests in Express:
+ * 1. Uses ResponseUtil for successful responses
+ * 2. Throws ApiError instances for error cases
+ * 3. Lets the global error middleware handle errors consistently
+ */
 @controller('/users')
 export class UserController {
   constructor(
@@ -47,70 +56,42 @@ export class UserController {
 
   @httpGet('/', auth)
   public async getAllUsers(_req: Request, res: Response): Promise<void> {
-    try {
-      const users = await this.userService.findAll();
-      ResponseUtil.ok(res, users);
-    } catch (error) {
-      console.error('Error getting all users:', error);
-      ResponseUtil.serverError(res, 'Failed to get users');
-    }
+    const users = await this.userService.findAll();
+    ResponseUtil.ok(res, users);
   }
 
   @httpGet('/:id', auth, selfOrAdmin)
   public async getUserById(req: Request, res: Response): Promise<void> {
-    try {
-      const user = await this.userService.findById(req.params.id);
-      if (!user) {
-        ResponseUtil.notFound(res, `User not found with id: ${req.params.id}`);
-        return;
-      }
-      ResponseUtil.ok(res, user);
-    } catch (error) {
-      console.error(`Error getting user with ID ${req.params.id}:`, error);
-      ResponseUtil.serverError(res, 'Failed to get user');
+    const user = await this.userService.findById(req.params.id);
+    if (!user) {
+      throw ApiError.notFound(`User not found with id: ${req.params.id}`);
     }
+    ResponseUtil.ok(res, user);
   }
 
   @httpPost('/', auth, adminOnly)
   public async createUser(req: Request, res: Response): Promise<void> {
-    try {
-      const userData: CreateUserDTO = req.body;
-      const newUser = await this.userService.create(userData);
-      ResponseUtil.created(res, newUser);
-    } catch (error) {
-      console.error('Error creating user:', error);
-      ResponseUtil.badRequest(res, 'Failed to create user');
-    }
+    const userData: CreateUserDTO = req.body;
+    const newUser = await this.userService.create(userData);
+    ResponseUtil.created(res, newUser);
   }
 
   @httpPut('/:id', auth, selfOrAdmin)
   public async updateUser(req: Request, res: Response): Promise<void> {
-    try {
-      const userData: UpdateUserDTO = req.body;
-      const updatedUser = await this.userService.update(req.params.id, userData);
-      if (!updatedUser) {
-        ResponseUtil.notFound(res, `User not found with id: ${req.params.id}`);
-        return;
-      }
-      ResponseUtil.ok(res, updatedUser);
-    } catch (error) {
-      console.error(`Error updating user with ID ${req.params.id}:`, error);
-      ResponseUtil.badRequest(res, 'Failed to update user');
+    const userData: UpdateUserDTO = req.body;
+    const updatedUser = await this.userService.update(req.params.id, userData);
+    if (!updatedUser) {
+      throw ApiError.notFound(`User not found with id: ${req.params.id}`);
     }
+    ResponseUtil.ok(res, updatedUser);
   }
 
   @httpDelete('/:id', auth, adminOnly)
   public async deleteUser(req: Request, res: Response): Promise<void> {
-    try {
-      const deleted = await this.userService.delete(req.params.id);
-      if (!deleted) {
-        ResponseUtil.notFound(res, `User not found with id: ${req.params.id}`);
-        return;
-      }
-      ResponseUtil.noContent(res);
-    } catch (error) {
-      console.error(`Error deleting user with ID ${req.params.id}:`, error);
-      ResponseUtil.serverError(res, 'Failed to delete user');
+    const deleted = await this.userService.delete(req.params.id);
+    if (!deleted) {
+      throw ApiError.notFound(`User not found with id: ${req.params.id}`);
     }
+    ResponseUtil.noContent(res);
   }
 } 

@@ -2,6 +2,8 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { Container } from 'inversify';
 import { TYPES } from '@config/types';
+import { ResponseUtil } from '@utils/response.util';
+import { ApiError } from '@/middlewares/error.middleware';
 
 // Extend Express Request to include user data
 declare global {
@@ -45,16 +47,16 @@ export const createAuthMiddleware = (container: Container) => {
    */
   return (req: Request, res: Response, next: NextFunction): void => {
     const authHeader = req.headers.authorization;
-    
+
     if (!authHeader) {
-      res.status(401).json({ message: 'No authorization header provided' });
+      ResponseUtil.unauthorized(res, ApiError.unauthorized('No authorization header provided'));
       return;
     }
 
     const parts = authHeader.split(' ');
-    
+
     if (parts.length !== 2 || parts[0] !== 'Bearer') {
-      res.status(401).json({ message: 'Authorization header format should be "Bearer {token}"' });
+      ResponseUtil.unauthorized(res, ApiError.unauthorized('Authorization header format should be "Bearer {token}"'));
       return;
     }
 
@@ -73,18 +75,18 @@ export const createAuthMiddleware = (container: Container) => {
           ...decoded
         };
       }
-      
+
       next();
     } catch (error) {
       let message = 'Invalid token';
-      
+
       if (error instanceof jwt.TokenExpiredError) {
         message = 'Token expired';
       } else if (error instanceof jwt.JsonWebTokenError) {
         message = 'Invalid token format';
       }
-      
-      res.status(401).json({ message });
+
+      ResponseUtil.unauthorized(res, ApiError.unauthorized(message));
     }
   };
 };
@@ -97,7 +99,7 @@ export const createAuthMiddleware = (container: Container) => {
 export const hasRoles = (roles: string[]) => {
   return (req: Request, res: Response, next: NextFunction): void => {
     if (!req.user) {
-      res.status(401).json({ message: 'User not authenticated' });
+      ResponseUtil.unauthorized(res, ApiError.unauthorized('User not authenticated'));
       return;
     }
 
@@ -105,7 +107,7 @@ export const hasRoles = (roles: string[]) => {
     const hasRequiredRoles = roles.some(role => userRoles.includes(role));
 
     if (!hasRequiredRoles) {
-      res.status(403).json({ message: 'Insufficient permissions' });
+      ResponseUtil.forbidden(res, ApiError.forbidden('Insufficient permissions'));
       return;
     }
 
