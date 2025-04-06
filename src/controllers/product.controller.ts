@@ -4,6 +4,7 @@ import { controller, httpGet, httpPost, httpPut, httpDelete, requestParam, query
 import { TYPES } from '@config/types';
 import { CreateProductDTO, UpdateProductDTO } from '@models/dto/product.dto';
 import { IProductService } from '@/interfaces/product.service.interfaces';
+import { ResponseUtil } from '@/utils/response.util';
 
 @controller('/products')
 export class ProductController {
@@ -15,10 +16,10 @@ export class ProductController {
     public async getAllProducts(_req: Request, res: Response): Promise<void> {
         try {
             const products = await this.productService.findAll();
-            res.json(products);
+            ResponseUtil.ok(res, products);
         } catch (error) {
             console.error('Error getting all products:', error);
-            res.status(500).json({ error: 'Failed to get products' });
+            ResponseUtil.serverError(res, 'Failed to get products');
         }
     }
 
@@ -31,14 +32,14 @@ export class ProductController {
             if (min !== undefined && max !== undefined) {
                 // If min and max are provided, search by price range
                 const products = await this.productService.findByPriceRange(min, max);
-                res.json(products);
+                ResponseUtil.ok(res, products);
             } else {
                 // Otherwise return an error
-                res.status(400).json({ error: 'Both min and max query parameters are required for price search' });
+                ResponseUtil.badRequest(res, 'Both min and max query parameters are required for price search');
             }
         } catch (error) {
             console.error('Error searching products:', error);
-            res.status(500).json({ error: 'Failed to search products' });
+            ResponseUtil.serverError(res, 'Failed to search products');
         }
     }
 
@@ -46,10 +47,10 @@ export class ProductController {
     public async getProductsByType(req: Request, res: Response): Promise<void> {
         try {
             const products = await this.productService.findByType(req.params.type);
-            res.json(products);
+            ResponseUtil.ok(res, products);
         } catch (error) {
             console.error(`Error getting products with type ${req.params.type}:`, error);
-            res.status(500).json({ error: 'Failed to get products by type' });
+            ResponseUtil.serverError(res, 'Failed to get products by type');
         }
     }
 
@@ -58,13 +59,13 @@ export class ProductController {
         try {
             const product = await this.productService.findById(req.params.id);
             if (!product) {
-                res.status(404).json({ error: 'Product not found' });
+                ResponseUtil.notFound(res, `Product not found with id: ${req.params.id}`);
                 return;
             }
-            res.json(product);
+            ResponseUtil.ok(res, product);
         } catch (error) {
             console.error(`Error getting product with ID ${req.params.id}:`, error);
-            res.status(500).json({ error: 'Failed to get product' });
+            ResponseUtil.serverError(res, 'Failed to get product');
         }
     }
 
@@ -73,10 +74,10 @@ export class ProductController {
         try {
             const productData: CreateProductDTO = req.body;
             const newProduct = await this.productService.create(productData);
-            res.status(201).json(newProduct);
+            ResponseUtil.created(res, newProduct);
         } catch (error) {
             console.error('Error creating product:', error);
-            res.status(400).json({ error: 'Failed to create product' });
+            ResponseUtil.badRequest(res, 'Failed to create product');
         }
     }
 
@@ -86,13 +87,13 @@ export class ProductController {
             const productData: UpdateProductDTO = req.body;
             const updatedProduct = await this.productService.update(req.params.id, productData);
             if (!updatedProduct) {
-                res.status(404).json({ error: 'Product not found' });
+                ResponseUtil.notFound(res, `Product not found with id: ${req.params.id}`);
                 return;
             }
-            res.json(updatedProduct);
+            ResponseUtil.ok(res, updatedProduct);
         } catch (error) {
             console.error(`Error updating product with ID ${req.params.id}:`, error);
-            res.status(400).json({ error: 'Failed to update product' });
+            ResponseUtil.badRequest(res, 'Failed to update product');
         }
     }
 
@@ -101,13 +102,13 @@ export class ProductController {
         try {
             const deleted = await this.productService.delete(req.params.id);
             if (!deleted) {
-                res.status(404).json({ error: 'Product not found' });
+                ResponseUtil.notFound(res, `Product not found with id: ${req.params.id}`);
                 return;
             }
-            res.status(204).send();
+            ResponseUtil.noContent(res);
         } catch (error) {
             console.error(`Error deleting product with ID ${req.params.id}:`, error);
-            res.status(500).json({ error: 'Failed to delete product' });
+            ResponseUtil.serverError(res, 'Failed to delete product');
         }
     }
 }
