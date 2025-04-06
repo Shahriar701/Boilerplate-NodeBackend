@@ -91,6 +91,12 @@ src/
 - npm or yarn
 - MongoDB or PostgreSQL (depending on your configuration)
 
+### Branch Information
+
+This repository has two main branches:
+- **main**: Contains the core boilerplate code with essential features and structure
+- **dev**: Contains additional implementation examples including product API and authentication. If you're looking for more comprehensive examples, check out the dev branch.
+
 ### Installation
 
 1. Clone the repository:
