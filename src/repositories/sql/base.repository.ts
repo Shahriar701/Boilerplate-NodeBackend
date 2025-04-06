@@ -2,7 +2,7 @@ import { injectable, inject } from 'inversify';
 import { Repository, ObjectLiteral, DeepPartial, FindOptionsWhere, DataSource } from 'typeorm';
 import { IDatabaseConnection } from '@database/database.interface';
 import { TYPES } from '@config/types';
-import { IBaseRepository } from '../base.repository.interface';
+import { IBaseRepository } from '../../interfaces/base.repository.interface';
 
 @injectable()
 export abstract class TypeOrmBaseRepository<T extends ObjectLiteral> implements IBaseRepository<T> {
@@ -42,11 +42,11 @@ export abstract class TypeOrmBaseRepository<T extends ObjectLiteral> implements 
   public async update(id: string, entity: Partial<T>): Promise<T | null> {
     this.initializeRepository();
     const existingEntity = await this.findById(id);
-    
+
     if (!existingEntity) {
       return null;
     }
-    
+
     const updatedEntity = this.repository.merge(existingEntity, entity as DeepPartial<T>);
     return this.repository.save(updatedEntity);
   }

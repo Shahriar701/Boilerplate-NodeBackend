@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { validateBody, Validators } from './validation.middleware';
+import { validateBody, Validators } from '../validation.middleware';
 
 describe('Validation Middleware', () => {
   let mockRequest: Partial<Request>;
@@ -11,12 +11,12 @@ describe('Validation Middleware', () => {
     mockRequest = {
       body: {}
     };
-    
+
     mockResponse = {
       status: jest.fn().mockReturnThis(),
       json: jest.fn().mockReturnThis()
     };
-    
+
     nextFunction = jest.fn();
   });
 
@@ -25,10 +25,10 @@ describe('Validation Middleware', () => {
       // Arrange
       mockRequest.body = undefined;
       const middleware = validateBody<any>({});
-      
+
       // Act
       middleware(mockRequest as Request, mockResponse as Response, nextFunction);
-      
+
       // Assert
       expect(mockResponse.status).toHaveBeenCalledWith(400);
       expect(mockResponse.json).toHaveBeenCalledWith({ message: 'Request body is required' });
@@ -42,16 +42,16 @@ describe('Validation Middleware', () => {
         name: 'John Doe',
         age: 30
       };
-      
+
       const middleware = validateBody<typeof mockRequest.body>({
         email: Validators.email,
         name: Validators.string(2, 100),
         age: Validators.number(18, 100)
       });
-      
+
       // Act
       middleware(mockRequest as Request, mockResponse as Response, nextFunction);
-      
+
       // Assert
       expect(nextFunction).toHaveBeenCalled();
       expect(mockResponse.status).not.toHaveBeenCalled();
@@ -64,7 +64,7 @@ describe('Validation Middleware', () => {
         name: 'A', // too short
         age: 15    // too young
       };
-      
+
       const middleware = validateBody<typeof mockRequest.body>(
         {
           email: Validators.email,
@@ -77,10 +77,10 @@ describe('Validation Middleware', () => {
           age: 'Age must be between 18 and 100'
         }
       );
-      
+
       // Act
       middleware(mockRequest as Request, mockResponse as Response, nextFunction);
-      
+
       // Assert
       expect(mockResponse.status).toHaveBeenCalledWith(400);
       expect(mockResponse.json).toHaveBeenCalledWith({
@@ -98,14 +98,14 @@ describe('Validation Middleware', () => {
       mockRequest.body = {
         email: 'invalid-email'
       };
-      
+
       const middleware = validateBody<{ email: string }>({
         email: Validators.email
       });
-      
+
       // Act
       middleware(mockRequest as Request, mockResponse as Response, nextFunction);
-      
+
       // Assert
       expect(mockResponse.status).toHaveBeenCalledWith(400);
       expect(mockResponse.json).toHaveBeenCalledWith({
@@ -121,15 +121,15 @@ describe('Validation Middleware', () => {
         email: 'user@example.com'
         // name is optional and not provided
       };
-      
+
       const middleware = validateBody<{ email: string; name?: string }>({
         email: Validators.email,
         name: Validators.string(2, 100)
       });
-      
+
       // Act
       middleware(mockRequest as Request, mockResponse as Response, nextFunction);
-      
+
       // Assert
       expect(nextFunction).toHaveBeenCalled();
     });
@@ -154,7 +154,7 @@ describe('Validation Middleware', () => {
     describe('string', () => {
       it('should validate string length', () => {
         const validator = Validators.string(2, 5);
-        
+
         expect(validator('a')).toBe(false);     // too short
         expect(validator('ab')).toBe(true);     // minimum length
         expect(validator('abcde')).toBe(true);  // maximum length
@@ -163,7 +163,7 @@ describe('Validation Middleware', () => {
 
       it('should return false for non-string values', () => {
         const validator = Validators.string();
-        
+
         expect(validator(123)).toBe(false);
         expect(validator(null)).toBe(false);
         expect(validator(undefined)).toBe(false);
@@ -174,7 +174,7 @@ describe('Validation Middleware', () => {
     describe('number', () => {
       it('should validate number range', () => {
         const validator = Validators.number(5, 10);
-        
+
         expect(validator(4)).toBe(false);  // too small
         expect(validator(5)).toBe(true);   // minimum value
         expect(validator(7)).toBe(true);   // in range
@@ -184,7 +184,7 @@ describe('Validation Middleware', () => {
 
       it('should return false for non-number values', () => {
         const validator = Validators.number();
-        
+
         expect(validator('123')).toBe(false);
         expect(validator(null)).toBe(false);
         expect(validator(undefined)).toBe(false);

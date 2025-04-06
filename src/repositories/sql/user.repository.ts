@@ -3,7 +3,7 @@ import { IDatabaseConnection } from '@database/database.interface';
 import { TYPES } from '@config/types';
 import { User } from '@models/sql/user.entity';
 import { TypeOrmBaseRepository } from './base.repository';
-import { IBaseRepository } from '../base.repository.interface';
+import { IBaseRepository } from '../../interfaces/base.repository.interface';
 
 export interface IUserRepository extends IBaseRepository<User> {
   findByEmail(email: string): Promise<User | null>;
