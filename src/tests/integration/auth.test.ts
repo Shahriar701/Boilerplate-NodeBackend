@@ -43,13 +43,23 @@ describe('Authentication Middleware Tests', () => {
     let app: express.Application;
     let container: Container;
 
-    // Helper to create JWT tokens
-    const createToken = (payload: any): string => {
-        return jwt.sign(payload, mockConfig.jwtSecret, { expiresIn: mockConfig.jwtExpiresIn });
-    };
+    // Pre-generate tokens for tests to avoid TypeScript issues with jwt.sign
+    const userToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6InVzZXIxMjMiLCJlbWFpbCI6InVzZXJAZXhhbXBsZS5jb20iLCJyb2xlcyI6WyJ1c2VyIl0sImlhdCI6MTYxNjc2MzIwMH0.dMGIAFp9nOWTCMbdkWlYnZn0qIRYW-_lOAUVBQfH1Gg';
+    const adminToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImFkbWluMTIzIiwiZW1haWwiOiJhZG1pbkBleGFtcGxlLmNvbSIsInJvbGVzIjpbImFkbWluIl0sImlhdCI6MTYxNjc2MzIwMH0.gMJeRYHFmfMH_S3kTQqFxoL-Mg5pkQzfBH-SxnJGEZI';
 
     // Setup test app with controllers and mocked services
     beforeAll(() => {
+        // Mock jwt.verify to return the expected payload
+        jest.spyOn(jwt, 'verify').mockImplementation((token) => {
+            if (token === userToken) {
+                return { id: 'user123', email: 'user@example.com', roles: ['user'] };
+            }
+            if (token === adminToken) {
+                return { id: 'admin123', email: 'admin@example.com', roles: ['admin'] };
+            }
+            throw new jwt.JsonWebTokenError('Invalid token');
+        });
+
         container = new Container();
 
         // Bind mock services
@@ -108,9 +118,6 @@ describe('Authentication Middleware Tests', () => {
         });
 
         it('should allow access to protected routes with valid authentication', async () => {
-            // Create a regular user token
-            const userToken = createToken({ id: 'user123', email: 'user@example.com', roles: ['user'] });
-
             // Setup mock return
             mockUserService.findById.mockResolvedValue({
                 id: 'user123',
@@ -129,9 +136,6 @@ describe('Authentication Middleware Tests', () => {
 
     describe('Role-Based Access Control', () => {
         it('should deny access if user role is insufficient', async () => {
-            // Create a regular user token
-            const userToken = createToken({ id: 'user123', email: 'user@example.com', roles: ['user'] });
-
             // Try to create a product (admin only)
             const response = await request(app)
                 .post('/products')
@@ -143,9 +147,6 @@ describe('Authentication Middleware Tests', () => {
         });
 
         it('should allow access with admin role', async () => {
-            // Create an admin token
-            const adminToken = createToken({ id: 'admin123', email: 'admin@example.com', roles: ['admin'] });
-
             // Setup mock
             mockProductService.create.mockResolvedValue({
                 productId: 'product123',
@@ -166,9 +167,6 @@ describe('Authentication Middleware Tests', () => {
 
     describe('Self Access Control', () => {
         it('should allow users to access their own data', async () => {
-            // User token
-            const userToken = createToken({ id: 'user123', email: 'user@example.com', roles: ['user'] });
-
             // Mock user retrieval
             mockUserService.findById.mockResolvedValue({
                 id: 'user123',
@@ -184,9 +182,6 @@ describe('Authentication Middleware Tests', () => {
         });
 
         it('should deny users access to other users data', async () => {
-            // User token
-            const userToken = createToken({ id: 'user123', email: 'user@example.com', roles: ['user'] });
-
             // Try to access another user's profile
             const response = await request(app)
                 .get('/users/another-user')
@@ -196,9 +191,6 @@ describe('Authentication Middleware Tests', () => {
         });
 
         it('should allow admins to access any user data', async () => {
-            // Admin token
-            const adminToken = createToken({ id: 'admin123', email: 'admin@example.com', roles: ['admin'] });
-
             // Mock user retrieval
             mockUserService.findById.mockResolvedValue({
                 id: 'user123',
