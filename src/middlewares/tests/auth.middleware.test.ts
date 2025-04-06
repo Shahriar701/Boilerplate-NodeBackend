@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { createAuthMiddleware, hasRoles, generateToken } from '../auth.middleware';
 import { TYPES } from '@config/types';
 import { ResponseUtil } from '@/utils/response.util';
+import { ApiError } from '@/middlewares/error.middleware';
 
 // Mock ResponseUtil
 jest.mock('@/utils/response.util', () => ({
