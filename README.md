@@ -484,6 +484,27 @@ socket.on('connect_error', (err) => {
 });
 ```
 
+## Authentication & Authorization
+
+The application implements a secure authentication system:
+
+- **JWT-based Authentication**: Uses JSON Web Tokens for stateless authentication
+- **Role-based Authorization**: Restricts access based on user roles (e.g., 'admin', 'user')
+- **Middleware Protection**: Routes can be individually protected with authentication checks
+- **Self-Data Access**: Users can access and modify their own data
+- **Admin Privileges**: Admin users have full access to all resources
+
+### Protected Routes
+
+- **Public Routes**: Product listing and details are publicly accessible
+- **User Routes**: Protected with authentication and appropriate permissions:
+  - User listing: Authenticated users only
+  - User details: Self or admin only
+  - User creation: Admin only
+  - User updates: Self or admin only
+  - User deletion: Admin only
+- **Product Management**: Admin-only for creation, updates, and deletion
+
 ## License
 
 This project is licensed under the ISC License. 
