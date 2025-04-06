@@ -5,6 +5,7 @@ import { IProductService } from '@/interfaces/product.service.interfaces';
 import { ProductResponseDTO, CreateProductDTO, UpdateProductDTO } from '@/models/dto/product.dto';
 import { IProduct } from '@/interfaces/DbInterfaces';
 import { Document } from 'mongoose';
+import { ProductBuilder } from '@/models/builders';
 
 @injectable()
 export class ProductService implements IProductService {
@@ -14,7 +15,7 @@ export class ProductService implements IProductService {
 
     public async findAll(): Promise<ProductResponseDTO[]> {
         const products = await this.productRepository.findAll();
-        return products.map(product => this.toResponseDTO(product));
+        return products.map(this.toResponseDTO);
     }
 
     public async findById(id: string): Promise<ProductResponseDTO | null> {
@@ -24,16 +25,18 @@ export class ProductService implements IProductService {
 
     public async findByType(type: string): Promise<ProductResponseDTO[]> {
         const products = await this.productRepository.findByType(type);
-        return products.map(product => this.toResponseDTO(product));
+        return products.map(this.toResponseDTO);
     }
 
     public async findByPriceRange(min: number, max: number): Promise<ProductResponseDTO[]> {
         const products = await this.productRepository.findByPriceRange(min, max);
-        return products.map(product => this.toResponseDTO(product));
+        return products.map(this.toResponseDTO);
     }
 
     public async create(data: CreateProductDTO): Promise<ProductResponseDTO> {
-        const product = await this.productRepository.create(data);
+        // Using ProductBuilder factory method to create from DTO
+        const productData = ProductBuilder.fromDTO(data).build();
+        const product = await this.productRepository.create(productData);
         return this.toResponseDTO(product);
     }
 
