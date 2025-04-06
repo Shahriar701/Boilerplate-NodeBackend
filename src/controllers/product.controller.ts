@@ -1,10 +1,25 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { inject } from 'inversify';
 import { controller, httpGet, httpPost, httpPut, httpDelete, requestParam, queryParam } from 'inversify-express-utils';
 import { TYPES } from '@config/types';
 import { CreateProductDTO, UpdateProductDTO } from '@models/dto/product.dto';
 import { IProductService } from '@/interfaces/product.service.interfaces';
 import { ResponseUtil } from '@/utils/response.util';
+import { createAuthMiddleware, hasRoles } from '@/middlewares/auth.middleware';
+import { Container } from 'inversify';
+
+// Get the container from the server context
+const getContainer = (req: Request): Container => {
+  return (req as any).container;
+};
+
+// Auth middleware factory
+const auth = (req: Request, res: Response, next: NextFunction) => {
+  return createAuthMiddleware(getContainer(req))(req, res, next);
+};
+
+// Admin role check middleware
+const adminOnly = hasRoles(['admin']);
 
 @controller('/products')
 export class ProductController {
@@ -69,7 +84,7 @@ export class ProductController {
         }
     }
 
-    @httpPost('/')
+    @httpPost('/', auth, adminOnly)
     public async createProduct(req: Request, res: Response): Promise<void> {
         try {
             const productData: CreateProductDTO = req.body;
@@ -81,7 +96,7 @@ export class ProductController {
         }
     }
 
-    @httpPut('/:id')
+    @httpPut('/:id', auth, adminOnly)
     public async updateProduct(req: Request, res: Response): Promise<void> {
         try {
             const productData: UpdateProductDTO = req.body;
@@ -97,7 +112,7 @@ export class ProductController {
         }
     }
 
-    @httpDelete('/:id')
+    @httpDelete('/:id', auth, adminOnly)
     public async deleteProduct(req: Request, res: Response): Promise<void> {
         try {
             const deleted = await this.productService.delete(req.params.id);

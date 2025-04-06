@@ -39,6 +39,12 @@ async function bootstrap(): Promise<void> {
       app.use(helmet());
       app.use(cors());
       app.use(morgan(config.nodeEnv === 'development' ? 'dev' : 'combined'));
+      
+      // Include container in request object for auth middleware to access
+      app.use((req, _res, next) => {
+        (req as any).container = container;
+        next();
+      });
     });
 
     // Build express app
