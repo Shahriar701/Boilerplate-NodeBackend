@@ -4,7 +4,7 @@ import express from 'express';
 import { InversifyExpressServer } from 'inversify-express-utils';
 import { Container } from 'inversify';
 import { TYPES } from '@config/types';
-import { IUserService } from '@services/user.service';
+import { IUserService } from '../../interfaces/user.service.interfaces';
 
 // Import controller for route registration
 import '@controllers/user.controller';
@@ -23,7 +23,7 @@ const mockUserService = {
 const expectObjectsToMatch = (actual: any, expected: any) => {
   const normalizedActual = { ...actual };
   const normalizedExpected = { ...expected };
-  
+
   // Convert date strings back to Date objects for comparison
   if (normalizedActual.createdAt && typeof normalizedActual.createdAt === 'string') {
     normalizedActual.createdAt = new Date(normalizedActual.createdAt);
@@ -31,13 +31,13 @@ const expectObjectsToMatch = (actual: any, expected: any) => {
   if (normalizedActual.updatedAt && typeof normalizedActual.updatedAt === 'string') {
     normalizedActual.updatedAt = new Date(normalizedActual.updatedAt);
   }
-  
+
   // Compare the key properties excluding exact date equality
   expect(normalizedActual.id).toEqual(normalizedExpected.id);
   expect(normalizedActual.name).toEqual(normalizedExpected.name);
   expect(normalizedActual.email).toEqual(normalizedExpected.email);
   expect(normalizedActual.isActive).toEqual(normalizedExpected.isActive);
-  
+
   // Verify dates exist but don't compare exact values
   expect(normalizedActual.createdAt).toBeInstanceOf(Date);
   expect(normalizedActual.updatedAt).toBeInstanceOf(Date);
@@ -77,10 +77,10 @@ describe('UserController (Integration)', () => {
       const response = await request(app).get('/users');
 
       expect(response.status).toBe(200);
-      
+
       // Check array length
       expect(response.body.length).toEqual(mockUsers.length);
-      
+
       // Check each user object
       response.body.forEach((user: any, index: number) => {
         expect(user.id).toEqual(mockUsers[index].id);
@@ -91,20 +91,20 @@ describe('UserController (Integration)', () => {
         expect(user.createdAt).toBeTruthy();
         expect(user.updatedAt).toBeTruthy();
       });
-      
+
       expect(mockUserService.findAll).toHaveBeenCalled();
     });
   });
 
   describe('GET /users/:id', () => {
     it('should return a user by id', async () => {
-      const mockUser = { 
-        id: '1', 
-        name: 'User 1', 
-        email: 'user1@example.com', 
-        isActive: true, 
-        createdAt: new Date(), 
-        updatedAt: new Date() 
+      const mockUser = {
+        id: '1',
+        name: 'User 1',
+        email: 'user1@example.com',
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date()
       };
 
       mockUserService.findById.mockResolvedValue(mockUser);

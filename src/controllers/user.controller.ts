@@ -2,14 +2,14 @@ import { Request, Response } from 'express';
 import { inject } from 'inversify';
 import { controller, httpGet, httpPost, httpPut, httpDelete } from 'inversify-express-utils';
 import { TYPES } from '@config/types';
-import { IUserService } from '@services/user.service';
+import { IUserService } from '../interfaces/user.service.interfaces';
 import { CreateUserDTO, UpdateUserDTO } from '@models/dto/user.dto';
 
 @controller('/users')
 export class UserController {
   constructor(
     @inject(TYPES.IUserService) private readonly userService: IUserService
-  ) {}
+  ) { }
 
   @httpGet('/')
   public async getAllUsers(_req: Request, res: Response): Promise<void> {
