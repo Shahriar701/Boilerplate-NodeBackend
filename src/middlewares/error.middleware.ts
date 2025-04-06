@@ -50,10 +50,10 @@ export const errorMiddleware = (
   res: Response,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _next: NextFunction
-): Response => {
+): void => {
   console.error(`[ERROR] ${err.message}`, err);
 
-  // Preserve the original error's stack trace for development mode
+  // Preserve the orig as well?inal error's stack trace for development mode
   const stack = err.stack;
 
   // Handle specific error types
@@ -61,24 +61,31 @@ export const errorMiddleware = (
     // Use appropriate ResponseUtil method based on error status code
     switch (err.statusCode) {
       case 400:
-        return ResponseUtil.badRequest(res, err, err.errors);
+        ResponseUtil.badRequest(res, err, err.errors);
+        return;
       case 401:
-        return ResponseUtil.unauthorized(res, err);
+        ResponseUtil.unauthorized(res, err);
+        return;
       case 403:
-        return ResponseUtil.forbidden(res, err);
+        ResponseUtil.forbidden(res, err);
+        return;
       case 404:
-        return ResponseUtil.notFound(res, err);
+        ResponseUtil.notFound(res, err);
+        return;
       default:
-        return ResponseUtil.serverError(res, err);
+        ResponseUtil.serverError(res, err);
+        return;
     }
   } else if (err.name === 'ValidationError') {
     // Handle validation errors
     // This assumes the validation error has a structure with errors property
     // Adjust according to your validation library
-    return ResponseUtil.badRequest(res, err, (err as any).errors);
+    ResponseUtil.badRequest(res, err, (err as any).errors);
+    return;
   } else if (err.name === 'UnauthorizedError') {
     // Handle auth errors
-    return ResponseUtil.unauthorized(res, err);
+    ResponseUtil.unauthorized(res, err);
+    return;
   }
 
   // For generic errors, we want to use a standardized message but preserve the stack trace
@@ -86,5 +93,5 @@ export const errorMiddleware = (
   genericError.stack = stack; // Preserve the original stack trace
 
   // Use a standardized message for generic errors to maintain consistency
-  return ResponseUtil.serverError(res, genericError);
+  ResponseUtil.serverError(res, genericError);
 }; 
