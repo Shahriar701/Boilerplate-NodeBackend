@@ -2,8 +2,8 @@ import { Request, Response } from 'express';
 import { inject } from 'inversify';
 import { controller, httpGet, httpPost, httpPut, httpDelete } from 'inversify-express-utils';
 import { TYPES } from '@config/types';
-import { IUserService } from '@services/user.service';
 import { CreateUserDTO, UpdateUserDTO } from '@models/dto/user.dto';
+import { IUserService } from '@/interfaces/user.service.interfaces';
 
 @controller('/users')
 export class UserController {

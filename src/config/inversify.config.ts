@@ -3,20 +3,29 @@ import { EnvironmentConfig, IEnvironmentConfig } from './env.config';
 import { TYPES } from './types';
 import { IDatabaseConnection } from '@database/database.interface';
 import { DatabaseFactory } from '@database/database.factory';
-import { IUserService, UserService } from '@services/user.service';
+import { UserService } from '@services/user.service';
 import { IUserRepository } from '@repositories/mongo/user.repository';
 import { SocketService } from '@services/socket.service';
 import { AuthConfig } from '../middlewares/auth.middleware';
+import { IUserService } from '@/interfaces/user.service.interfaces';
+import { IProductRepository } from '@/repositories/mongo/product.repository';
+import { IProductService } from '@/interfaces/product.service.interfaces';
+import { ProductService } from '@/services/product.service';
 
 // Import repositories based on database type
 const dbType = process.env.DB_TYPE || 'postgres';
 let UserRepositoryClass;
+let ProductRepositoryClass;
 
 if (dbType.toLowerCase() === 'mongodb' || dbType.toLowerCase() === 'mongo') {
   const { UserRepository } = require('@repositories/mongo/user.repository');
+  const { ProductRepository } = require('@repositories/mongo/product.repository');
+
   UserRepositoryClass = UserRepository;
+  ProductRepositoryClass = ProductRepository;
 } else {
   const { UserRepository } = require('@repositories/sql/user.repository');
+
   UserRepositoryClass = UserRepository;
 }
 
@@ -45,9 +54,10 @@ container.bind<IDatabaseConnection>(TYPES.IDatabaseConnection).toDynamicValue((c
 
 // Bind repositories
 container.bind<IUserRepository>(TYPES.IUserRepository).to(UserRepositoryClass).inSingletonScope();
-
+container.bind<IProductRepository>(TYPES.IProductRepository).to(ProductRepositoryClass).inSingletonScope();
 // Bind services
 container.bind<IUserService>(TYPES.IUserService).to(UserService).inSingletonScope();
+container.bind<IProductService>(TYPES.IProductService).to(ProductService).inSingletonScope();
 
 // Bind WebSocket services
 container.bind<SocketService>(TYPES.SocketService).to(SocketService).inSingletonScope();

@@ -1,10 +1,10 @@
 import { injectable } from 'inversify';
-import { IBaseService } from './base.service.interface';
-import { IBaseRepository } from '@repositories/base.repository.interface';
+import { IBaseService } from '../interfaces/base.service.interface';
+import { IBaseRepository } from '@/interfaces/base.repository.interface';
 
 @injectable()
 export abstract class BaseService<T> implements IBaseService<T> {
-  constructor(protected readonly repository: IBaseRepository<T>) {}
+  constructor(protected readonly repository: IBaseRepository<T>) { }
 
   public async findAll(): Promise<T[]> {
     return this.repository.findAll();
