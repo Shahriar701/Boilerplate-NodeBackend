@@ -1,3 +1,11 @@
+/**
+ * User Controller
+ * 
+ * Demonstrates best practices for handling HTTP requests in Express:
+ * 1. Uses ResponseUtil for successful responses
+ * 2. Throws ApiError instances for error cases
+ * 3. Lets the global error middleware handle errors consistently
+ */
 import { Request, Response, NextFunction } from 'express';
 import { inject } from 'inversify';
 import { controller, httpGet, httpPost, httpPut, httpDelete } from 'inversify-express-utils';

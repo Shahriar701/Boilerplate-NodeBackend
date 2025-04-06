@@ -1,8 +1,8 @@
-import { Socket } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import { Container } from 'inversify';
 import { createSocketAuthMiddleware, createSocketRolesMiddleware } from '@middlewares/socket.middleware';
 import { TYPES } from '@config/types';
+import { Socket } from 'socket.io';
 
 // Mock jsonwebtoken
 jest.mock('jsonwebtoken', () => ({
@@ -13,7 +13,7 @@ jest.mock('jsonwebtoken', () => ({
 
 describe('Socket Middleware', () => {
   let container: Container;
-  let mockSocket: any; // Using any to bypass TypeScript strict typing
+  let mockSocket: any;
   let nextFunction: jest.Mock;
 
   beforeEach(() => {
@@ -31,15 +31,7 @@ describe('Socket Middleware', () => {
     mockSocket = {
       handshake: {
         auth: {},
-        headers: {},
-        // Add additional required properties
-        time: new Date().toISOString(),
-        address: '127.0.0.1',
-        xdomain: false,
-        secure: true,
-        issued: new Date().getTime(),
-        url: '/',
-        query: {}
+        headers: {}
       },
       data: {}
     };

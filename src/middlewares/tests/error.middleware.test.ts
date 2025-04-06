@@ -165,5 +165,32 @@ describe('Error Middleware', () => {
       const serverErrorCall = (ResponseUtil.serverError as jest.Mock).mock.calls[0];
       expect(serverErrorCall[1].stack).toBe('Error stack trace');
     });
+
+    it('should include stack trace in development mode', () => {
+      // Change NODE_ENV to development for this test
+      process.env.NODE_ENV = 'development';
+
+      const error = new Error('Test error');
+      error.stack = 'Error stack trace';
+
+      errorMiddleware(error, mockRequest as Request, mockResponse as Response, nextFunction);
+
+      const serverErrorCall = (ResponseUtil.serverError as jest.Mock).mock.calls[0];
+      expect(serverErrorCall[1].stack).toBe('Error stack trace');
+    });
+
+    it('should handle generic errors consistently in production mode', () => {
+      // Ensure NODE_ENV is production for this test
+      process.env.NODE_ENV = 'production';
+
+      const error = new Error('Test error');
+      error.stack = 'Error stack trace';
+
+      errorMiddleware(error, mockRequest as Request, mockResponse as Response, nextFunction);
+
+      // Even in production, we still preserve the stack trace for debugging
+      const serverErrorCall = (ResponseUtil.serverError as jest.Mock).mock.calls[0];
+      expect(serverErrorCall[1].stack).toBe('Error stack trace');
+    });
   });
 }); 
