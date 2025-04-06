@@ -4,7 +4,7 @@ import { TYPES } from './types';
 import { IDatabaseConnection } from '@database/database.interface';
 import { DatabaseFactory } from '@database/database.factory';
 import { IUserService } from '../interfaces/user.service.interfaces';
-import { UserService } from '@services/user.service';
+import { UserService } from '../services/user.service';
 import { IUserRepository } from '@repositories/mongo/user.repository';
 import { SocketService } from '@services/socket.service';
 import { AuthConfig } from '../middlewares/auth.middleware';
