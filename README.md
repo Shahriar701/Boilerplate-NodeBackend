@@ -58,7 +58,17 @@ src/
 │   ├── database.factory.ts    # Factory for DB connections
 │   ├── postgres.connection.ts # PostgreSQL implementation
 │   └── mongodb.connection.ts  # MongoDB implementation
+├── interfaces/      # Interfaces
+│   ├── base.repository.interface.ts  # Base repository interface
+│   ├── base.service.interface.ts     # Base service interface
+│   ├── DbInterfaces.ts               # Database related interfaces
+│   └── user.service.interfaces.ts    # User service interfaces
 ├── middlewares/     # Express middlewares
+│   ├── auth.middleware.ts      # Authentication middleware
+│   ├── error.middleware.ts     # Error handling middleware
+│   ├── socket.middleware.ts    # Socket.IO middleware
+│   ├── validation.middleware.ts # Input validation middleware
+│   └── tests/                  # Middleware tests
 ├── models/          # Data models
 │   ├── dto/              # Data Transfer Objects
 │   │   └── user.dto.ts   # User DTOs
@@ -67,7 +77,6 @@ src/
 │   └── sql/              # SQL entities
 │       └── user.entity.ts # User TypeORM entity
 ├── repositories/    # Data access layer
-│   ├── base.repository.interface.ts  # Base repository interface
 │   ├── mongo/                        # MongoDB repositories
 │   │   ├── base.repository.ts        # Base MongoDB repository
 │   │   └── user.repository.ts        # User MongoDB repository
@@ -75,11 +84,17 @@ src/
 │       ├── base.repository.ts        # Base SQL repository
 │       └── user.repository.ts        # User SQL repository
 ├── services/        # Business logic layer
-│   ├── base.service.interface.ts     # Base service interface
 │   ├── base.service.ts               # Base service implementation
 │   ├── user.service.ts               # User service
-│   └── user.service.test.ts          # User service tests
+│   ├── socket.service.ts             # Socket.IO service
+│   └── tests/                        # Service tests
 ├── tests/           # Test setup and utilities
+│   ├── integration/                  # Integration tests
+│   │   └── user.controller.test.ts   # User API tests
+│   └── setup.ts                      # Test setup utilities
+├── utils/           # Utility classes and helpers
+│   ├── response.util.ts              # HTTP response utilities
+│   └── tests/                        # Utilities tests
 └── index.ts         # Application entry point
 ```
 
