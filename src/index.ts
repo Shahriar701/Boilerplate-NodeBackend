@@ -16,6 +16,7 @@ import { createSocketAuthMiddleware } from './middlewares/socket.middleware';
 // Import controllers
 // Note: The controllers need to be imported here so they can register routes via decorators
 import './controllers/user.controller';
+import './controllers/product.controller';
 
 async function bootstrap(): Promise<void> {
   try {

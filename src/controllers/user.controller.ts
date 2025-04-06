@@ -2,23 +2,24 @@ import { Request, Response } from 'express';
 import { inject } from 'inversify';
 import { controller, httpGet, httpPost, httpPut, httpDelete } from 'inversify-express-utils';
 import { TYPES } from '@config/types';
-import { IUserService } from '@services/user.service';
 import { CreateUserDTO, UpdateUserDTO } from '@models/dto/user.dto';
+import { IUserService } from '@/interfaces/user.service.interfaces';
+import { ResponseUtil } from '@/utils/response.util';
 
 @controller('/users')
 export class UserController {
   constructor(
     @inject(TYPES.IUserService) private readonly userService: IUserService
-  ) {}
+  ) { }
 
   @httpGet('/')
   public async getAllUsers(_req: Request, res: Response): Promise<void> {
     try {
       const users = await this.userService.findAll();
-      res.json(users);
+      ResponseUtil.ok(res, users);
     } catch (error) {
       console.error('Error getting all users:', error);
-      res.status(500).json({ error: 'Failed to get users' });
+      ResponseUtil.serverError(res, 'Failed to get users');
     }
   }
 
@@ -27,13 +28,13 @@ export class UserController {
     try {
       const user = await this.userService.findById(req.params.id);
       if (!user) {
-        res.status(404).json({ error: 'User not found' });
+        ResponseUtil.notFound(res, `User not found with id: ${req.params.id}`);
         return;
       }
-      res.json(user);
+      ResponseUtil.ok(res, user);
     } catch (error) {
       console.error(`Error getting user with ID ${req.params.id}:`, error);
-      res.status(500).json({ error: 'Failed to get user' });
+      ResponseUtil.serverError(res, 'Failed to get user');
     }
   }
 
@@ -42,10 +43,10 @@ export class UserController {
     try {
       const userData: CreateUserDTO = req.body;
       const newUser = await this.userService.create(userData);
-      res.status(201).json(newUser);
+      ResponseUtil.created(res, newUser);
     } catch (error) {
       console.error('Error creating user:', error);
-      res.status(400).json({ error: 'Failed to create user' });
+      ResponseUtil.badRequest(res, 'Failed to create user');
     }
   }
 
@@ -55,13 +56,13 @@ export class UserController {
       const userData: UpdateUserDTO = req.body;
       const updatedUser = await this.userService.update(req.params.id, userData);
       if (!updatedUser) {
-        res.status(404).json({ error: 'User not found' });
+        ResponseUtil.notFound(res, `User not found with id: ${req.params.id}`);
         return;
       }
-      res.json(updatedUser);
+      ResponseUtil.ok(res, updatedUser);
     } catch (error) {
       console.error(`Error updating user with ID ${req.params.id}:`, error);
-      res.status(400).json({ error: 'Failed to update user' });
+      ResponseUtil.badRequest(res, 'Failed to update user');
     }
   }
 
@@ -70,13 +71,13 @@ export class UserController {
     try {
       const deleted = await this.userService.delete(req.params.id);
       if (!deleted) {
-        res.status(404).json({ error: 'User not found' });
+        ResponseUtil.notFound(res, `User not found with id: ${req.params.id}`);
         return;
       }
-      res.status(204).send();
+      ResponseUtil.noContent(res);
     } catch (error) {
       console.error(`Error deleting user with ID ${req.params.id}:`, error);
-      res.status(500).json({ error: 'Failed to delete user' });
+      ResponseUtil.serverError(res, 'Failed to delete user');
     }
   }
 } 

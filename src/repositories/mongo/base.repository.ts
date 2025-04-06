@@ -1,10 +1,10 @@
 import { injectable } from 'inversify';
 import { Model, Document } from 'mongoose';
-import { IBaseRepository } from '../base.repository.interface';
+import { IBaseRepository } from '../../interfaces/base.repository.interface';
 
 @injectable()
 export abstract class MongoBaseRepository<T extends Document> implements IBaseRepository<T> {
-  constructor(protected readonly model: Model<T>) {}
+  constructor(protected readonly model: Model<T>) { }
 
   public async findAll(): Promise<T[]> {
     return this.model.find().exec();
