@@ -116,7 +116,7 @@ This repository has two main branches:
 
 1. Clone the repository:
    ```
-   git clone https://github.com/yourusername/backend-boilerplate.git
+   git clone https://github.com/Shahriar701/Boilerplate-NodeBackend.git
    cd Boilerplate-NodeBackend
    ```
 
