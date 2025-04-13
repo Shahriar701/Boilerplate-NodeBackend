@@ -49,15 +49,13 @@ export const createAuthMiddleware = (container: Container) => {
     const authHeader = req.headers.authorization;
 
     if (!authHeader) {
-      ResponseUtil.unauthorized(res, ApiError.unauthorized('No authorization header provided'));
-      return;
+      throw ApiError.unauthorized('No authorization header provided');
     }
 
     const parts = authHeader.split(' ');
 
     if (parts.length !== 2 || parts[0] !== 'Bearer') {
-      ResponseUtil.unauthorized(res, ApiError.unauthorized('Authorization header format should be "Bearer {token}"'));
-      return;
+      throw ApiError.unauthorized('Authorization header format should be "Bearer {token}"');
     }
 
     const token = parts[1];
@@ -77,16 +75,18 @@ export const createAuthMiddleware = (container: Container) => {
       }
 
       next();
-    } catch (error) {
-      let message = 'Invalid token';
-
-      if (error instanceof jwt.TokenExpiredError) {
-        message = 'Token expired';
-      } else if (error instanceof jwt.JsonWebTokenError) {
-        message = 'Invalid token format';
+    } catch (error: unknown) {
+      // Convert JWT errors to ApiError types
+      if (error && typeof error === 'object' && 'name' in error) {
+        if (error.name === 'TokenExpiredError') {
+          throw ApiError.unauthorized('Token expired');
+        } else if (error.name === 'JsonWebTokenError') {
+          throw ApiError.unauthorized('Invalid token format');
+        }
       }
 
-      ResponseUtil.unauthorized(res, ApiError.unauthorized(message));
+      // For any other types of errors
+      throw ApiError.unauthorized('Invalid token');
     }
   };
 };

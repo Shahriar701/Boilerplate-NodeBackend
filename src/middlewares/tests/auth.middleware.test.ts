@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { createAuthMiddleware, hasRoles, generateToken } from '../auth.middleware';
 import { TYPES } from '@config/types';
 import { ResponseUtil } from '@/utils/response.util';
+import { ApiError } from '@/middlewares/error.middleware';
 
 // Mock ResponseUtil
 jest.mock('@/utils/response.util', () => ({
@@ -53,36 +54,36 @@ describe('Authentication Middleware', () => {
   });
 
   describe('createAuthMiddleware', () => {
-    it('should return 401 if no authorization header is provided', () => {
+    it('should throw an ApiError if no authorization header is provided', () => {
       // Arrange
       const middleware = createAuthMiddleware(container);
 
-      // Act
-      middleware(mockRequest as Request, mockResponse as Response, nextFunction);
+      // Act & Assert
+      expect(() => {
+        middleware(mockRequest as Request, mockResponse as Response, nextFunction);
+      }).toThrow(ApiError);
 
-      // Assert
-      expect(ResponseUtil.unauthorized).toHaveBeenCalledWith(
-        mockResponse,
-        expect.objectContaining({ message: 'No authorization header provided' })
-      );
+      expect(() => {
+        middleware(mockRequest as Request, mockResponse as Response, nextFunction);
+      }).toThrow('No authorization header provided');
+
       expect(nextFunction).not.toHaveBeenCalled();
     });
 
-    it('should return 401 if authorization header format is invalid', () => {
+    it('should throw an ApiError if authorization header format is invalid', () => {
       // Arrange
       mockRequest.headers = { authorization: 'Invalid-Format' };
       const middleware = createAuthMiddleware(container);
 
-      // Act
-      middleware(mockRequest as Request, mockResponse as Response, nextFunction);
+      // Act & Assert
+      expect(() => {
+        middleware(mockRequest as Request, mockResponse as Response, nextFunction);
+      }).toThrow(ApiError);
 
-      // Assert
-      expect(ResponseUtil.unauthorized).toHaveBeenCalledWith(
-        mockResponse,
-        expect.objectContaining({
-          message: 'Authorization header format should be "Bearer {token}"'
-        })
-      );
+      expect(() => {
+        middleware(mockRequest as Request, mockResponse as Response, nextFunction);
+      }).toThrow('Authorization header format should be "Bearer {token}"');
+
       expect(nextFunction).not.toHaveBeenCalled();
     });
 
@@ -107,41 +108,45 @@ describe('Authentication Middleware', () => {
       expect(nextFunction).toHaveBeenCalled();
     });
 
-    it('should return 401 if token is expired', () => {
+    it('should throw an ApiError if token is expired', () => {
       // Arrange
       mockRequest.headers = { authorization: 'Bearer expired-token' };
       const error = new (jwt.TokenExpiredError as any)('Token expired');
+      error.name = 'TokenExpiredError';
       (jwt.verify as jest.Mock).mockImplementation(() => { throw error; });
 
       const middleware = createAuthMiddleware(container);
 
-      // Act
-      middleware(mockRequest as Request, mockResponse as Response, nextFunction);
+      // Act & Assert
+      expect(() => {
+        middleware(mockRequest as Request, mockResponse as Response, nextFunction);
+      }).toThrow(ApiError);
 
-      // Assert
-      expect(ResponseUtil.unauthorized).toHaveBeenCalledWith(
-        mockResponse,
-        expect.objectContaining({ message: 'Token expired' })
-      );
+      expect(() => {
+        middleware(mockRequest as Request, mockResponse as Response, nextFunction);
+      }).toThrow('Token expired');
+
       expect(nextFunction).not.toHaveBeenCalled();
     });
 
-    it('should return 401 if token format is invalid', () => {
+    it('should throw an ApiError if token format is invalid', () => {
       // Arrange
       mockRequest.headers = { authorization: 'Bearer invalid-token' };
       const error = new (jwt.JsonWebTokenError as any)('Invalid token');
+      error.name = 'JsonWebTokenError';
       (jwt.verify as jest.Mock).mockImplementation(() => { throw error; });
 
       const middleware = createAuthMiddleware(container);
 
-      // Act
-      middleware(mockRequest as Request, mockResponse as Response, nextFunction);
+      // Act & Assert
+      expect(() => {
+        middleware(mockRequest as Request, mockResponse as Response, nextFunction);
+      }).toThrow(ApiError);
 
-      // Assert
-      expect(ResponseUtil.unauthorized).toHaveBeenCalledWith(
-        mockResponse,
-        expect.objectContaining({ message: 'Invalid token format' })
-      );
+      expect(() => {
+        middleware(mockRequest as Request, mockResponse as Response, nextFunction);
+      }).toThrow('Invalid token format');
+
       expect(nextFunction).not.toHaveBeenCalled();
     });
   });

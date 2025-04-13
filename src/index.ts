@@ -17,6 +17,7 @@ import { createSocketAuthMiddleware } from './middlewares/socket.middleware';
 // Note: The controllers need to be imported here so they can register routes via decorators
 import './controllers/user.controller';
 import './controllers/product.controller';
+import './controllers/auth.controller';
 
 async function bootstrap(): Promise<void> {
   try {
@@ -39,7 +40,7 @@ async function bootstrap(): Promise<void> {
       app.use(helmet());
       app.use(cors());
       app.use(morgan(config.nodeEnv === 'development' ? 'dev' : 'combined'));
-      
+
       // Include container in request object for auth middleware to access
       app.use((req, _res, next) => {
         (req as any).container = container;
