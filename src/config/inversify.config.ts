@@ -11,6 +11,8 @@ import { IUserService } from '@/interfaces/user.service.interfaces';
 import { IProductRepository } from '@/repositories/mongo/product.repository';
 import { IProductService } from '@/interfaces/product.service.interfaces';
 import { ProductService } from '@/services/product.service';
+import { AuthService } from '@services/auth.service';
+import { IAuthService } from '@/interfaces/auth.service.interfaces';
 
 // Import repositories based on database type
 const dbType = process.env.DB_TYPE || 'postgres';
@@ -61,6 +63,9 @@ container.bind<IProductService>(TYPES.IProductService).to(ProductService).inSing
 
 // Bind WebSocket services
 container.bind<SocketService>(TYPES.SocketService).to(SocketService).inSingletonScope();
+
+// Auth service
+container.bind<IAuthService>(TYPES.IAuthService).to(AuthService).inSingletonScope();
 
 // You would bind your services, repositories, etc. here
 // Example:

@@ -46,6 +46,8 @@ export class UserService extends BaseService<any> implements IUserService {
       id: user.id || user._id.toString(),
       email: user.email,
       name: user.name,
+      password: user.password,
+      roles: user.roles || [],
       isActive: user.isActive,
       lastLogin: user.lastLogin,
       createdAt: user.createdAt,
