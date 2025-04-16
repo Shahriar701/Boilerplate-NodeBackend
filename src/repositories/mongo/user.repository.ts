@@ -19,6 +19,6 @@ export class UserRepository extends MongoBaseRepository<IUser> implements IUserR
   }
 
   public async findByEmail(email: string): Promise<IUser | null> {
-    return this.model.findOne({ email }).exec();
+    return this.model.findOne({ email }).select('+password').exec();
   }
 } 

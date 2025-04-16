@@ -528,4 +528,65 @@ The application implements a secure authentication system:
 
 ## License
 
-This project is licensed under the ISC License. 
+This project is licensed under the ISC License.
+
+## Authentication Requirements
+
+- Node.js v20+ is required for proper handling of modern JavaScript syntax in dependencies
+- The application uses bcrypt for password hashing
+- JWTs are used for stateless authentication
+
+## Setup
+
+1. Clone the repository
+2. Install dependencies:
+```bash
+# Use Node.js v20+
+nvm use 20
+npm install
+```
+
+3. Create a `.env` file based on `.env.example`
+4. Start the development server:
+```bash
+npm run dev
+```
+
+## Authentication
+
+The application uses JWT-based authentication. To test the authentication endpoints:
+
+### Register a new user
+```bash
+curl -X POST http://localhost:3000/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Test User","email":"test@example.com","password":"password123"}'
+```
+
+### Login
+```bash
+curl -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@example.com","password":"password123"}'
+```
+
+## Project Structure
+
+- `src/` - Source code
+  - `controllers/` - Express controllers
+  - `services/` - Business logic
+  - `repositories/` - Data access layer
+  - `models/` - Data models
+  - `middlewares/` - Express middlewares
+  - `config/` - Configuration
+  - `database/` - Database connections
+  - `scripts/` - Utility scripts
+
+## Available Scripts
+
+- `npm run dev` - Start development server with hot reload
+- `npm run build` - Build for production
+- `npm start` - Run production build
+- `npm test` - Run tests
+- `npm run seed` - Initialize database with seed data
+- `npm run list-users` - List all users in the database 

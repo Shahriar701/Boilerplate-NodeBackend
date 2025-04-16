@@ -20,6 +20,14 @@ export class AuthService implements IAuthService {
         
         const user = await this.userService.findByEmail(loginDTO.email);
         console.log('User found:', user ? 'Yes' : 'No');
+        console.log('User details:', JSON.stringify({
+            id: user?.id,
+            email: user?.email,
+            name: user?.name,
+            hasPassword: !!user?.password,
+            passwordLength: user?.password?.length,
+            roles: user?.roles
+        }, null, 2));
         
         if (!user) {
             console.log('User not found');
@@ -34,38 +42,48 @@ export class AuthService implements IAuthService {
         }
         
         console.log('Comparing passwords...');
-        console.log('Input password:', loginDTO.password);
-        console.log('Stored password (hash):', user.password);
+        console.log('Input password:', loginDTO.password ? '[PROVIDED]' : '[EMPTY]');
+        console.log('Stored password (hash):', user.password ? '[HASH PRESENT]' : '[NO HASH]');
         
-        const isPasswordValid = await bcrypt.compare(loginDTO.password, user.password);
-        console.log('Password valid:', isPasswordValid ? 'Yes' : 'No');
-        
-        if (!isPasswordValid) {
-            console.log('Password invalid');
+        try {
+            const isPasswordValid = await bcrypt.compare(loginDTO.password, user.password);
+            console.log('Password valid:', isPasswordValid ? 'Yes' : 'No');
+            
+            if (!isPasswordValid) {
+                console.log('Password invalid');
+                throw ApiError.unauthorized('Invalid credentials');
+            }
+            
+            console.log('Generating token...');
+            
+            const token = generateToken(
+                {
+                    id: user.id,
+                    email: user.email,
+                    roles: user.roles || []
+                },
+                this.config.jwtSecret,
+                this.config.jwtExpiresIn
+            );
+
+            // Update last login time
+            await this.userService.update(user.id, {
+                lastLogin: new Date()
+            });
+
+            return {
+                token,
+                user: {
+                    id: user.id,
+                    name: user.name,
+                    email: user.email,
+                    roles: user.roles || []
+                }
+            };
+        } catch (error) {
+            console.error('Error during password comparison:', error);
             throw ApiError.unauthorized('Invalid credentials');
         }
-        
-        console.log('Generating token...');
-        
-        const token = generateToken(
-            {
-                id: user.id,
-                email: user.email,
-                roles: user.roles
-            },
-            this.config.jwtSecret,
-            this.config.jwtExpiresIn
-        );
-
-        return {
-            token,
-            user: {
-                id: user.id,
-                name: user.name,
-                email: user.email,
-                roles: user.roles
-            }
-        };
     }
 
     async register(registerDTO: RegisterDTO): Promise<AuthResponseDTO> {
