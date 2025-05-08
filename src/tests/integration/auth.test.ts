@@ -7,6 +7,12 @@ import jwt from 'jsonwebtoken';
 import { TYPES } from '@config/types';
 import { IUserService } from '@/interfaces/user.service.interfaces';
 import { IProductService } from '@/interfaces/product.service.interfaces';
+import { container } from '@config/inversify.config';
+import { IUserRepository } from '@/repositories/mongo/user.repository';
+import bcrypt from 'bcrypt';
+import { v4 as uuidv4 } from 'uuid';
+import { AuthService } from '@/services/auth.service';
+import { ApiError } from '@/middlewares/error.middleware';
 
 // Import controllers for route registration
 import '@controllers/user.controller';
@@ -43,11 +49,34 @@ const mockConfig = {
     jwtSecret: 'test-secret',
     jwtExpiresIn: '1h',
     nodeEnv: 'test',
+    port: 3000
 };
+
+// Mock the user repository
+const mockUserRepository = {
+    findByEmail: jest.fn(),
+    create: jest.fn(),
+    findById: jest.fn(),
+    findAll: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn()
+};
+
+// Mock JWT and bcrypt
+jest.mock('jsonwebtoken', () => ({
+    sign: jest.fn().mockReturnValue('mock-token'),
+    verify: jest.fn()
+}));
+
+jest.mock('bcrypt', () => ({
+    hash: jest.fn().mockResolvedValue('hashed-password'),
+    compare: jest.fn()
+}));
 
 describe('Authentication Middleware Tests', () => {
     let app: express.Application;
     let container: Container;
+    let authService: AuthService;
 
     // Pre-generate tokens for tests to avoid TypeScript issues with jwt.sign
     const userToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6InVzZXIxMjMiLCJlbWFpbCI6InVzZXJAZXhhbXBsZS5jb20iLCJyb2xlcyI6WyJ1c2VyIl0sImlhdCI6MTYxNjc2MzIwMH0.dMGIAFp9nOWTCMbdkWlYnZn0qIRYW-_lOAUVBQfH1Gg';
@@ -74,6 +103,7 @@ describe('Authentication Middleware Tests', () => {
         container.bind<IProductService>(TYPES.IProductService).toConstantValue(mockProductService);
         container.bind(TYPES.IAuthService).toConstantValue(mockAuthService);
         container.bind(TYPES.IEnvironmentConfig).toConstantValue(mockConfig);
+        container.bind<IUserRepository>(TYPES.IUserRepository).toConstantValue(mockUserRepository);
 
         // Create server
         const server = new InversifyExpressServer(container);
@@ -95,10 +125,23 @@ describe('Authentication Middleware Tests', () => {
         });
 
         app = server.build();
+
+        // Get auth service instance - create a real instance with mocked dependencies
+        authService = new AuthService(mockUserService, mockConfig);
     });
 
     beforeEach(() => {
         jest.clearAllMocks();
+
+        // Reset all mocks to their default behavior
+        mockUserRepository.findByEmail.mockReset();
+        mockUserRepository.create.mockReset();
+        mockUserService.findByEmail.mockReset();
+        mockUserService.create.mockReset();
+        mockUserService.update.mockReset();
+        (bcrypt.compare as jest.Mock).mockReset();
+        (bcrypt.hash as jest.Mock).mockReset();
+        (jwt.sign as jest.Mock).mockReset().mockReturnValue('mock-token');
     });
 
     describe('Public Routes', () => {
@@ -313,6 +356,158 @@ describe('Authentication Middleware Tests', () => {
                 name: 'New User',
                 email: 'newuser@example.com',
                 password: 'password123'
+            });
+        });
+    });
+
+    describe('Auth Service', () => {
+        describe('Login', () => {
+            test('should authenticate user with valid credentials', async () => {
+                // Arrange
+                const mockUser = {
+                    id: 'user-id',
+                    email: 'test@example.com',
+                    password: 'hashed-password',
+                    name: 'Test User',
+                    roles: ['user']
+                };
+
+                mockUserService.findByEmail.mockResolvedValue(mockUser);
+                (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+
+                // Act
+                const result = await authService.login({
+                    email: 'test@example.com',
+                    password: 'password123'
+                });
+
+                // Assert
+                expect(mockUserService.findByEmail).toHaveBeenCalledWith('test@example.com');
+                expect(bcrypt.compare).toHaveBeenCalledWith('password123', 'hashed-password');
+                expect(jwt.sign).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        id: mockUser.id,
+                        email: mockUser.email,
+                        roles: mockUser.roles
+                    }),
+                    expect.any(String),
+                    expect.any(Object)
+                );
+                expect(result).toEqual({
+                    token: 'mock-token',
+                    user: {
+                        id: mockUser.id,
+                        email: mockUser.email,
+                        name: mockUser.name,
+                        roles: mockUser.roles
+                    }
+                });
+            });
+
+            test('should throw error with invalid email', async () => {
+                // Arrange
+                mockUserService.findByEmail.mockResolvedValue(null);
+
+                // Act & Assert
+                await expect(authService.login({
+                    email: 'nonexistent@example.com',
+                    password: 'password123'
+                })).rejects.toThrow(ApiError);
+            });
+
+            test('should throw error with invalid password', async () => {
+                // Arrange
+                const mockUser = {
+                    id: 'user-id',
+                    email: 'test@example.com',
+                    password: 'hashed-password',
+                    name: 'Test User',
+                    roles: ['user']
+                };
+
+                mockUserService.findByEmail.mockResolvedValue(mockUser);
+                (bcrypt.compare as jest.Mock).mockResolvedValue(false);
+
+                // Act & Assert
+                await expect(authService.login({
+                    email: 'test@example.com',
+                    password: 'wrong-password'
+                })).rejects.toThrow(ApiError);
+            });
+        });
+
+        describe('Register', () => {
+            test('should create a new user successfully', async () => {
+                // Arrange
+                const mockUser = {
+                    id: 'new-user-id',
+                    email: 'newuser@example.com',
+                    password: 'hashed-password',
+                    name: 'New User',
+                    roles: ['user']
+                };
+
+                mockUserService.findByEmail.mockResolvedValue(null);
+                mockUserService.create.mockResolvedValue(mockUser);
+                (bcrypt.hash as jest.Mock).mockResolvedValue('hashed-password');
+
+                // Act
+                const result = await authService.register({
+                    email: 'newuser@example.com',
+                    password: 'password123',
+                    name: 'New User'
+                });
+
+                // Assert
+                expect(mockUserService.findByEmail).toHaveBeenCalledWith('newuser@example.com');
+                expect(mockUserService.create).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        email: 'newuser@example.com',
+                        password: 'hashed-password',
+                        name: 'New User',
+                        roles: ['user']
+                    })
+                );
+                expect(jwt.sign).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        id: mockUser.id,
+                        email: mockUser.email,
+                        roles: mockUser.roles
+                    }),
+                    expect.any(String),
+                    expect.any(Object)
+                );
+                expect(result).toEqual({
+                    token: 'mock-token',
+                    user: {
+                        id: mockUser.id,
+                        email: mockUser.email,
+                        name: mockUser.name,
+                        roles: mockUser.roles
+                    }
+                });
+            });
+
+            test('should throw error when email already exists', async () => {
+                // Arrange
+                const existingUser = {
+                    id: 'existing-user-id',
+                    email: 'existing@example.com',
+                    password: 'hashed-password',
+                    name: 'Existing User',
+                    roles: ['user']
+                };
+
+                mockUserService.findByEmail.mockResolvedValue(existingUser);
+
+                // Act & Assert
+                await expect(authService.register({
+                    email: 'existing@example.com',
+                    password: 'password123',
+                    name: 'New User'
+                })).rejects.toThrow(ApiError);
+
+                expect(mockUserService.create).not.toHaveBeenCalled();
             });
         });
     });

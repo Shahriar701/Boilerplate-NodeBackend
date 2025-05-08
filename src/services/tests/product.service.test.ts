@@ -1,5 +1,6 @@
 import { ProductService } from '../product.service';
 import { CreateProductDTO, UpdateProductDTO } from '@/models/dto/product.dto';
+import { IProductDataAdapter } from '@/interfaces/adapters/product.adapter.interface';
 
 // Mock repository
 const mockRepository = {
@@ -10,6 +11,13 @@ const mockRepository = {
   create: jest.fn(),
   update: jest.fn(),
   delete: jest.fn(),
+};
+
+// Mock adapter
+const mockAdapter = {
+  toResponseDTO: jest.fn(),
+  fromCreateDTO: jest.fn(),
+  prepareUpdate: jest.fn(),
 };
 
 // Test data
@@ -42,7 +50,21 @@ describe('ProductService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    productService = new ProductService(mockRepository as any);
+
+    // Reset mock implementations
+    mockAdapter.toResponseDTO.mockImplementation((product) => ({
+      productId: product._id,
+      name: product.name,
+      type: product.type,
+      description: product.description,
+      price: product.price,
+      inventory: product.inventory,
+      isFeatured: product.isFeatured,
+      createdAt: product.createdAt,
+      updatedAt: product.updatedAt,
+    }));
+
+    productService = new ProductService(mockRepository as any, mockAdapter as IProductDataAdapter);
   });
 
   describe('findAll', () => {
@@ -52,6 +74,7 @@ describe('ProductService', () => {
       const result = await productService.findAll();
 
       expect(mockRepository.findAll).toHaveBeenCalled();
+      expect(mockAdapter.toResponseDTO).toHaveBeenCalledWith(mockProduct);
       expect(result).toEqual([mockProductResponse]);
     });
   });
@@ -63,6 +86,7 @@ describe('ProductService', () => {
       const result = await productService.findById('1');
 
       expect(mockRepository.findById).toHaveBeenCalledWith('1');
+      expect(mockAdapter.toResponseDTO).toHaveBeenCalledWith(mockProduct);
       expect(result).toEqual(mockProductResponse);
     });
 
@@ -83,6 +107,7 @@ describe('ProductService', () => {
       const result = await productService.findByType('Electronics');
 
       expect(mockRepository.findByType).toHaveBeenCalledWith('Electronics');
+      expect(mockAdapter.toResponseDTO).toHaveBeenCalledWith(mockProduct);
       expect(result).toEqual([mockProductResponse]);
     });
 
@@ -103,6 +128,7 @@ describe('ProductService', () => {
       const result = await productService.findByPriceRange(50, 100);
 
       expect(mockRepository.findByPriceRange).toHaveBeenCalledWith(50, 100);
+      expect(mockAdapter.toResponseDTO).toHaveBeenCalledWith(mockProduct);
       expect(result).toEqual([mockProductResponse]);
     });
 
@@ -134,28 +160,23 @@ describe('ProductService', () => {
         updatedAt: new Date(),
       };
 
-      mockRepository.create.mockResolvedValue(newProduct);
-
-      const result = await productService.create(createProductDTO);
-
-      // Verify the call was made correctly, but don't check timestamp fields
-      expect(mockRepository.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          name: createProductDTO.name,
-          type: createProductDTO.type,
-          description: createProductDTO.description,
-          price: createProductDTO.price,
-          inventory: createProductDTO.inventory,
-          isFeatured: createProductDTO.isFeatured,
-        })
-      );
-
-      expect(result).toEqual({
+      const responseDTO = {
         productId: '2',
         ...createProductDTO,
         createdAt: newProduct.createdAt,
         updatedAt: newProduct.updatedAt,
-      });
+      };
+
+      mockAdapter.fromCreateDTO.mockReturnValue(createProductDTO);
+      mockRepository.create.mockResolvedValue(newProduct);
+      mockAdapter.toResponseDTO.mockReturnValueOnce(responseDTO);
+
+      const result = await productService.create(createProductDTO);
+
+      expect(mockAdapter.fromCreateDTO).toHaveBeenCalledWith(createProductDTO);
+      expect(mockRepository.create).toHaveBeenCalledWith(createProductDTO);
+      expect(mockAdapter.toResponseDTO).toHaveBeenCalledWith(newProduct);
+      expect(result).toEqual(responseDTO);
     });
   });
 
@@ -172,24 +193,34 @@ describe('ProductService', () => {
         price: 79.99,
       };
 
-      mockRepository.update.mockResolvedValue(updatedProduct);
-
-      const result = await productService.update('1', updateProductDTO);
-
-      expect(mockRepository.update).toHaveBeenCalledWith('1', updateProductDTO);
-      expect(result).toEqual({
+      const responseDTO = {
         ...mockProductResponse,
         name: 'Updated Product',
         price: 79.99,
-      });
+      };
+
+      mockAdapter.prepareUpdate.mockReturnValue(updateProductDTO);
+      mockRepository.update.mockResolvedValue(updatedProduct);
+      mockAdapter.toResponseDTO.mockReturnValueOnce(responseDTO);
+
+      const result = await productService.update('1', updateProductDTO);
+
+      expect(mockAdapter.prepareUpdate).toHaveBeenCalledWith(updateProductDTO);
+      expect(mockRepository.update).toHaveBeenCalledWith('1', updateProductDTO);
+      expect(mockAdapter.toResponseDTO).toHaveBeenCalledWith(updatedProduct);
+      expect(result).toEqual(responseDTO);
     });
 
     it('should return null if product to update not found', async () => {
+      const updateData = { name: 'Updated Product' };
+
+      mockAdapter.prepareUpdate.mockReturnValue(updateData);
       mockRepository.update.mockResolvedValue(null);
 
-      const result = await productService.update('999', { name: 'Updated Product' });
+      const result = await productService.update('999', updateData);
 
-      expect(mockRepository.update).toHaveBeenCalledWith('999', { name: 'Updated Product' });
+      expect(mockAdapter.prepareUpdate).toHaveBeenCalledWith(updateData);
+      expect(mockRepository.update).toHaveBeenCalledWith('999', updateData);
       expect(result).toBeNull();
     });
   });

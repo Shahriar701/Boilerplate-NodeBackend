@@ -1,24 +1,43 @@
-import 'reflect-metadata';
-import request from 'supertest';
-import express from 'express';
-import { InversifyExpressServer } from 'inversify-express-utils';
+import { expect } from '@jest/globals';
 import { Container } from 'inversify';
-import jwt from 'jsonwebtoken';
+import { InversifyExpressServer } from 'inversify-express-utils';
 import { TYPES } from '@config/types';
-import { IProductService } from '@/interfaces/product.service.interfaces';
+import { IProductService } from '@/interfaces/product.service.interface';
+import express from 'express';
+import request from 'supertest';
+import { ProductResponseDTO, CreateProductDTO, UpdateProductDTO } from '@/models/dto/product.dto';
+import jwt from 'jsonwebtoken';
 
 // Import controller for route registration
 import '@controllers/product.controller';
 
-// Mock product service
-const mockProductService = {
-  findAll: jest.fn(),
-  findById: jest.fn(),
-  findByType: jest.fn(),
-  findByPriceRange: jest.fn(),
-  create: jest.fn(),
-  update: jest.fn(),
-  delete: jest.fn(),
+// Mock auth middleware
+jest.mock('@/middlewares/auth.middleware', () => ({
+  createAuthMiddleware: () => (req: any, res: any, next: any) => next(),
+  hasRoles: () => (req: any, res: any, next: any) => next()
+}));
+
+// Tokens for authentication
+let adminToken: string;
+let userToken: string;
+
+// Helper to match objects with key subset
+const expectObjectsToMatch = (received: any, expected: any) => {
+  Object.keys(expected).forEach(key => {
+    expect(received[key]).toEqual(expected[key]);
+  });
+};
+
+// Helper to convert dates to strings in objects for comparison
+const convertDatesToStrings = (obj: any): any => {
+  const result = { ...obj };
+  if (result.createdAt instanceof Date) {
+    result.createdAt = result.createdAt.toISOString();
+  }
+  if (result.updatedAt instanceof Date) {
+    result.updatedAt = result.updatedAt.toISOString();
+  }
+  return result;
 };
 
 // Mock config for auth
@@ -26,65 +45,41 @@ const mockConfig = {
   jwtSecret: 'test-secret',
   jwtExpiresIn: '1h',
   nodeEnv: 'test',
-};
-
-// Helper function to compare objects ignoring date format differences
-const expectObjectsToMatch = (actual: any, expected: any) => {
-  const normalizedActual = { ...actual };
-  const normalizedExpected = { ...expected };
-
-  // Convert date strings back to Date objects for comparison
-  if (normalizedActual.createdAt && typeof normalizedActual.createdAt === 'string') {
-    normalizedActual.createdAt = new Date(normalizedActual.createdAt);
-  }
-  if (normalizedActual.updatedAt && typeof normalizedActual.updatedAt === 'string') {
-    normalizedActual.updatedAt = new Date(normalizedActual.updatedAt);
-  }
-
-  // Compare the key properties excluding exact date equality
-  expect(normalizedActual.productId).toEqual(normalizedExpected.productId);
-  expect(normalizedActual.name).toEqual(normalizedExpected.name);
-  expect(normalizedActual.type).toEqual(normalizedExpected.type);
-
-  // Compare optional properties if they exist
-  if (normalizedExpected.description) {
-    expect(normalizedActual.description).toEqual(normalizedExpected.description);
-  }
-  if (normalizedExpected.price !== undefined) {
-    expect(normalizedActual.price).toEqual(normalizedExpected.price);
-  }
-  if (normalizedExpected.inventory !== undefined) {
-    expect(normalizedActual.inventory).toEqual(normalizedExpected.inventory);
-  }
-  if (normalizedExpected.isFeatured !== undefined) {
-    expect(normalizedActual.isFeatured).toEqual(normalizedExpected.isFeatured);
-  }
-
-  // Verify dates exist but don't compare exact values
-  expect(normalizedActual.createdAt).toBeInstanceOf(Date);
-  expect(normalizedActual.updatedAt).toBeInstanceOf(Date);
+  port: 3000
 };
 
 describe('ProductController (Integration)', () => {
   let app: express.Application;
   let container: Container;
-  let adminToken: string;
-
-  // Helper to create JWT tokens
-  const createToken = (payload: any): string => {
-    return jwt.sign(payload, mockConfig.jwtSecret);
-  };
+  let mockProductService: jest.Mocked<IProductService>;
 
   beforeAll(() => {
+    // Create container and register mocks
     container = new Container();
+
+    // Create ProductService mock
+    mockProductService = {
+      findAll: jest.fn(),
+      findById: jest.fn(),
+      findByType: jest.fn(),
+      findByPriceRange: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn()
+    } as unknown as jest.Mocked<IProductService>;
 
     // Bind mock service and config
     container.bind<IProductService>(TYPES.IProductService).toConstantValue(mockProductService);
     container.bind(TYPES.IEnvironmentConfig).toConstantValue(mockConfig);
 
-    // Create server with controllers
-    const server = new InversifyExpressServer(container);
+    // Add auth config binding
+    container.bind(TYPES.AuthConfig).toConstantValue({
+      secret: 'test-secret',
+      tokenExpiration: '1h'
+    });
 
+    // Create and configure Express server
+    const server = new InversifyExpressServer(container);
     server.setConfig((app) => {
       app.use(express.json());
 
@@ -95,32 +90,56 @@ describe('ProductController (Integration)', () => {
       });
     });
 
+    // Build Express application
     app = server.build();
 
-    // Create admin token for authenticated routes
-    adminToken = createToken({ id: 'admin123', email: 'admin@example.com', roles: ['admin'] });
+    // Create tokens for authentication
+    adminToken = jwt.sign({ id: 'admin123', email: 'admin@example.com', roles: ['admin'] }, 'test-secret', { expiresIn: '1h' });
+    userToken = jwt.sign({ id: 'user123', email: 'user@example.com', roles: ['user'] }, 'test-secret', { expiresIn: '1h' });
   });
 
+  // Clear mocks before each test
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
   describe('GET /products', () => {
-    it('should return all products', async () => {
-      // Setup
-      const products = [
-        { productId: '1', name: 'Test Product', type: 'Electronics' },
-        { productId: '2', name: 'Another Product', type: 'Clothing' }
+    test('should return all products', async () => {
+      // Create mock return data
+      const products: ProductResponseDTO[] = [
+        {
+          productId: '1',
+          name: 'Test Product 1',
+          type: 'electronics',
+          description: 'A test product',
+          price: 100,
+          inventory: 10,
+          isFeatured: true,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        },
+        {
+          productId: '2',
+          name: 'Test Product 2',
+          type: 'clothing',
+          description: 'Another test product',
+          price: 50,
+          inventory: 20,
+          isFeatured: false,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
       ];
 
+      // Configure mock
       mockProductService.findAll.mockResolvedValue(products);
 
-      // Execute
+      // Execute request
       const response = await request(app).get('/products');
 
-      // Assert
+      // Assertions
       expect(response.status).toBe(200);
-      expect(response.body).toEqual(products);
+      expect(response.body).toEqual(products.map(p => convertDatesToStrings(p)));
       expect(mockProductService.findAll).toHaveBeenCalled();
     });
   });
@@ -128,7 +147,17 @@ describe('ProductController (Integration)', () => {
   describe('GET /products/:id', () => {
     it('should return a product by id', async () => {
       // Setup
-      const product = { productId: '1', name: 'Test Product', type: 'Electronics' };
+      const product: ProductResponseDTO = {
+        productId: '1',
+        name: 'Test Product',
+        type: 'Electronics',
+        description: 'A test product',
+        price: 100,
+        inventory: 10,
+        isFeatured: false,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
       mockProductService.findById.mockResolvedValue(product);
 
       // Execute
@@ -136,7 +165,7 @@ describe('ProductController (Integration)', () => {
 
       // Assert
       expect(response.status).toBe(200);
-      expect(response.body).toEqual(product);
+      expect(response.body).toEqual(convertDatesToStrings(product));
       expect(mockProductService.findById).toHaveBeenCalledWith('1');
     });
 
@@ -156,9 +185,29 @@ describe('ProductController (Integration)', () => {
   describe('GET /products/type/:type', () => {
     it('should return products by type', async () => {
       // Setup
-      const products = [
-        { productId: '1', name: 'Test Product', type: 'Electronics' },
-        { productId: '2', name: 'Another Product', type: 'Electronics' }
+      const products: ProductResponseDTO[] = [
+        {
+          productId: '1',
+          name: 'Test Product',
+          type: 'Electronics',
+          description: 'A test product',
+          price: 100,
+          inventory: 10,
+          isFeatured: false,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        },
+        {
+          productId: '2',
+          name: 'Another Product',
+          type: 'Electronics',
+          description: 'Another test product',
+          price: 150,
+          inventory: 5,
+          isFeatured: true,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
       ];
       mockProductService.findByType.mockResolvedValue(products);
 
@@ -167,7 +216,7 @@ describe('ProductController (Integration)', () => {
 
       // Assert
       expect(response.status).toBe(200);
-      expect(response.body).toEqual(products);
+      expect(response.body).toEqual(products.map(p => convertDatesToStrings(p)));
       expect(mockProductService.findByType).toHaveBeenCalledWith('Electronics');
     });
   });
@@ -175,9 +224,29 @@ describe('ProductController (Integration)', () => {
   describe('GET /products/search', () => {
     it('should return products in price range', async () => {
       // Setup
-      const products = [
-        { productId: '1', name: 'Test Product', type: 'Electronics', price: 100 },
-        { productId: '2', name: 'Another Product', type: 'Electronics', price: 150 }
+      const products: ProductResponseDTO[] = [
+        {
+          productId: '1',
+          name: 'Test Product',
+          type: 'Electronics',
+          description: 'A test product',
+          price: 100,
+          inventory: 10,
+          isFeatured: false,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        },
+        {
+          productId: '2',
+          name: 'Another Product',
+          type: 'Electronics',
+          description: 'Another test product',
+          price: 150,
+          inventory: 5,
+          isFeatured: true,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
       ];
       mockProductService.findByPriceRange.mockResolvedValue(products);
 
@@ -186,7 +255,7 @@ describe('ProductController (Integration)', () => {
 
       // Assert
       expect(response.status).toBe(200);
-      expect(response.body).toEqual(products);
+      expect(response.body).toEqual(products.map(p => convertDatesToStrings(p)));
       expect(mockProductService.findByPriceRange).toHaveBeenCalledWith(50, 200);
     });
 
@@ -202,7 +271,7 @@ describe('ProductController (Integration)', () => {
   describe('POST /products', () => {
     it('should create a new product', async () => {
       // Setup
-      const newProductData = {
+      const newProductData: CreateProductDTO = {
         name: 'New Product',
         type: 'Furniture',
         description: 'A new product',
@@ -211,7 +280,7 @@ describe('ProductController (Integration)', () => {
         isFeatured: false
       };
 
-      const createdProduct = {
+      const createdProduct: ProductResponseDTO = {
         productId: '2',
         ...newProductData,
         createdAt: new Date(),
@@ -227,7 +296,7 @@ describe('ProductController (Integration)', () => {
         .send(newProductData);
 
       expect(response.status).toBe(201);
-      expectObjectsToMatch(response.body, createdProduct);
+      expectObjectsToMatch(response.body, convertDatesToStrings(createdProduct));
       expect(mockProductService.create).toHaveBeenCalledWith(newProductData);
     });
   });
@@ -235,12 +304,19 @@ describe('ProductController (Integration)', () => {
   describe('PUT /products/:id', () => {
     it('should update an existing product', async () => {
       // Setup
-      const updateData = { name: 'Updated Product', price: 199.99 };
-      const updatedProduct = {
+      const updateData: UpdateProductDTO = {
+        name: 'Updated Product',
+        price: 199.99
+      };
+
+      const updatedProduct: ProductResponseDTO = {
         productId: '1',
         name: 'Updated Product',
         type: 'Electronics',
+        description: 'A test product',
         price: 199.99,
+        inventory: 10,
+        isFeatured: false,
         createdAt: new Date(),
         updatedAt: new Date()
       };
@@ -254,7 +330,7 @@ describe('ProductController (Integration)', () => {
         .send(updateData);
 
       expect(response.status).toBe(200);
-      expectObjectsToMatch(response.body, updatedProduct);
+      expectObjectsToMatch(response.body, convertDatesToStrings(updatedProduct));
       expect(mockProductService.update).toHaveBeenCalledWith('1', updateData);
     });
 

@@ -1,0 +1,110 @@
+service: node-backend-boilerplate
+
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  stage: ${opt:stage, 'dev'}
+  region: ${opt:region, 'us-east-1'}
+  environment:
+    NODE_ENV: ${self:provider.stage}
+    DB_TYPE: 'dynamodb'
+    DYNAMO_REGION: ${self:provider.region}
+    DYNAMO_TABLE_PREFIX: ${self:service}-${self:provider.stage}-
+    JWT_SECRET: ${env:JWT_SECRET, 'dev_secret'}
+    JWT_EXPIRES_IN: ${env:JWT_EXPIRES_IN, '1d'}
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:Query
+            - dynamodb:Scan
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+            - dynamodb:BatchWriteItem
+          Resource:
+            - !GetAtt UsersTable.Arn
+            - !GetAtt UsersTable.Arn/index/EmailIndex
+            - !GetAtt ProductsTable.Arn
+            - !GetAtt ProductsTable.Arn/index/TypeIndex
+
+plugins:
+  - serverless-offline
+  - serverless-plugin-typescript
+  - serverless-dotenv-plugin
+
+custom:
+  serverlessPluginTypescript:
+    tsConfigFileLocation: './tsconfig.json'
+  serverlessOffline:
+    httpPort: 3000
+    noPrependStageInUrl: true
+
+package:
+  individually: true
+  patterns:
+    - '!node_modules/**'
+    - 'node_modules/@aws-sdk/**'
+    - 'node_modules/inversify/**'
+    - 'node_modules/reflect-metadata/**'
+    - 'node_modules/bcrypt/**'
+    - 'node_modules/jsonwebtoken/**'
+    - 'node_modules/uuid/**'
+
+functions:
+  # API Gateway Lambda proxy integration
+  app:
+    handler: src/lambda.handler
+    events:
+      - http:
+          path: /{proxy+}
+          method: ANY
+          cors: true
+
+resources:
+  Resources:
+    UsersTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.DYNAMO_TABLE_PREFIX}users
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+          - AttributeName: email
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: EmailIndex
+            KeySchema:
+              - AttributeName: email
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+
+    ProductsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.DYNAMO_TABLE_PREFIX}products
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+          - AttributeName: type
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: TypeIndex
+            KeySchema:
+              - AttributeName: type
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL 

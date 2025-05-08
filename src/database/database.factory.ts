@@ -2,6 +2,7 @@ import { injectable, inject } from 'inversify';
 import { IDatabaseConnection } from './database.interface';
 import { PostgresConnection } from './postgres.connection';
 import { MongoDBConnection } from './mongodb.connection';
+import { DynamoDBConnection } from './dynamodb.connection';
 import { IEnvironmentConfig } from '@config/env.config';
 import { TYPES } from '@config/types';
 
@@ -9,7 +10,7 @@ import { TYPES } from '@config/types';
 export class DatabaseFactory {
   constructor(
     @inject(TYPES.IEnvironmentConfig) private readonly config: IEnvironmentConfig
-  ) {}
+  ) { }
 
   public createConnection(): IDatabaseConnection {
     switch (this.config.dbType.toLowerCase()) {
@@ -19,6 +20,9 @@ export class DatabaseFactory {
       case 'mongodb':
       case 'mongo':
         return new MongoDBConnection(this.config);
+      case 'dynamodb':
+      case 'dynamo':
+        return new DynamoDBConnection(this.config);
       default:
         throw new Error(`Unsupported database type: ${this.config.dbType}`);
     }

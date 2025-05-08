@@ -22,4 +22,5 @@ export const TYPES = {
 
   // WebSocket
   SocketService: Symbol.for('SocketService'),
+  IProductDataAdapter: Symbol.for('IProductDataAdapter'),
 };
